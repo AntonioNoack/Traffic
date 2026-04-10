@@ -5,6 +5,8 @@ import org.joml.AABBf
 import org.joml.Quaternionf
 import org.joml.Vector3d
 import org.joml.Vector3f
+import kotlin.math.max
+import kotlin.math.min
 
 class Vehicle {
 
@@ -30,23 +32,44 @@ class Vehicle {
     val boundsMin = Vector3d()
     val boundsMax = Vector3d()
 
+    val treeBoundsMin = Vector3d()
+    val treeBoundsMax = Vector3d()
+
     var bounciness = 0.5
 
+    val targetVelocity = Vector3d()
+
     fun update(dt: Float) {
+        targetVelocity.set(0.0)
+        computeVelocityForDrivingOnLane()
+        stopOnNextSection()
+        stopIfAnythingTooClose()
+        moveOrCrash()
+
+        updateBounds(dt)
+    }
+
+    fun computeVelocityForDrivingOnLane() {
         // todo try to drive along road, all units are in meters
-        // todo if route[routeIndex].mayEnterNextLane(route[routeIndex+1])
+        // todo if stuck (car-angle to lane-direction too large), try to turn around
+    }
 
+    fun stopOnNextSection() {
+        // todo if !route[routeIndex].mayEnterNextLane(route[routeIndex+1]), stop the car
+    }
+
+    fun stopIfAnythingTooClose() {
         // todo respect vehicles in front of us (from route[routeIndex and routeIndex+1)
-        // todo if stuck, try to turn around
+    }
 
+    fun moveOrCrash() {
         // todo step forward,
         //  implement pseudo-physics based on Verlet integration
         // todo also keep distance constraint to prevSegment
-
-        updateBounds()
     }
 
-    fun updateBounds() {
+    fun updateBounds(dt: Float) {
+        val dt1 = max(2f, dt) // 2s tolerance
         boundsMin.set(Double.POSITIVE_INFINITY)
         boundsMax.set(Double.NEGATIVE_INFINITY)
         for (i in 0 until 8) {
@@ -59,7 +82,17 @@ class Vehicle {
             boundsMin.min(delta)
             boundsMax.max(delta)
         }
-        boundsMin.add(position)
-        boundsMax.add(position)
+
+        val factor = dt1 / dt
+        val vx = (position.x - prevPosition.x) * factor
+        val vy = (position.y - prevPosition.y) * factor
+        val vz = (position.z - prevPosition.z) * factor
+        boundsMin.add(position).add(max(vx, 0.0), max(vy, 0.0), max(vz, 0.0))
+        boundsMax.add(position).add(min(vx, 0.0), min(vy, 0.0), max(vz, 0.0))
+
+        // good enough to find crash-potential vehicles? probably not...
+        val extraScanRadius = 10.0
+        boundsMin.add(extraScanRadius, treeBoundsMin)
+        boundsMax.sub(extraScanRadius, treeBoundsMax)
     }
 }
