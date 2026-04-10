@@ -1,6 +1,10 @@
 package me.anno.traffic
 
 import me.anno.graph.octtree.KdTreePairs.queryPairs
+import me.anno.maths.Maths.sq
+import me.anno.traffic.utils.PointTree
+import me.anno.traffic.utils.VehicleTree
+import org.joml.Vector3d
 
 class Network {
 
@@ -8,7 +12,9 @@ class Network {
     val crossings = ArrayList<Crossing>()
     val lanes = ArrayList<Lane>()
     val roads = ArrayList<Road>()
+    val points = HashSet<LanePoint>()
 
+    private val pointTree = PointTree()
     private val vehicleTree = VehicleTree()
     private fun rebuildVehicleTree() {
         vehicleTree.clear()
@@ -66,5 +72,39 @@ class Network {
 
     fun removeLane(lane: Lane) {
         lanes.remove(lane)
+    }
+
+    fun addCrossing(crossing: Crossing) {
+        crossings.add(crossing)
+    }
+
+    fun removeCrossing(crossing: Crossing) {
+        crossings.remove(crossing)
+    }
+
+    fun addPoint(point: LanePoint) {
+        if (points.add(point)) pointTree.add(point)
+    }
+
+    fun removePoint(point: LanePoint) {
+        if (points.remove(point)) pointTree.remove(point)
+    }
+
+    // todo ensure rotation is close, too
+    fun getPoint(position: Vector3d, maxDistance: Double): LanePoint? {
+        var bestPoint: LanePoint? = null
+        var bestDistanceSq = sq(maxDistance)
+        pointTree.query(
+            Vector3d(position).sub(maxDistance),
+            Vector3d(position).add(maxDistance)
+        ) { point ->
+            val distanceSq = point.position.distanceSquared(position)
+            if (distanceSq < bestDistanceSq) {
+                bestPoint = point
+                bestDistanceSq = distanceSq
+            }
+            false
+        }
+        return bestPoint
     }
 }

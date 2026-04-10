@@ -1,7 +1,8 @@
-package me.anno.traffic
+package me.anno.traffic.utils
 
 import me.anno.graph.octtree.KdTree
 import me.anno.graph.octtree.OctTree
+import me.anno.traffic.Vehicle
 import org.joml.Vector3d
 
 class VehicleTree : OctTree<Vehicle>(16) {

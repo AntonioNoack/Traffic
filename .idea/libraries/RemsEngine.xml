@@ -4,6 +4,10 @@
       <root url="jar://$PROJECT_DIR$/../RemsEngine/out/artifacts/Universal/RemsEngine.jar!/" />
     </CLASSES>
     <JAVADOC />
-    <SOURCES />
+    <SOURCES>
+      <root url="file://$PROJECT_DIR$/../RemsEngine/src" />
+      <root url="file://$PROJECT_DIR$/../RemsEngine/src" />
+      <root url="file://$PROJECT_DIR$/../RemsEngine/KOML/src" />
+    </SOURCES>
   </library>
 </component>
