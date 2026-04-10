@@ -74,7 +74,7 @@ class UITest(sceneView: SceneView, val network: Network) :
         }
 
         val idealPosition = Vector3d(base)
-            .add(cos(angle) * jr, 0.0, sin(angle) * jr)
+            .add(cos(angle) * jr, 0.0, -sin(angle) * jr)
         val point0 = network.getPoint(idealPosition, laneWidth * 0.5)
         if (point0 != null) return point0
 
@@ -89,8 +89,42 @@ class UITest(sceneView: SceneView, val network: Network) :
         // todo draw active points
         // todo draw potential street
 
+        drawPotentialStreet()
+
         // draw existing streets
         for (lane in network.lanes) {
+            drawLine(lane, 0.0, 0.0)
+        }
+    }
+
+    fun drawPotentialStreet() {
+        if (state == State.NO_POINTS) return
+        val query = renderView.rayQuery()
+        val numPoints = if (Raycast.raycast(scene, query)) {
+            val dst = when (state) {
+                State.NO_POINTS -> position0
+                State.FIRST_POINT -> position1
+                State.SECOND_POINT -> position2
+            }
+
+            dst.set(query.result.positionWS)
+
+            when (state) {
+                State.NO_POINTS -> 1
+                State.FIRST_POINT -> 2
+                State.SECOND_POINT -> 3
+            }
+        } else {
+            when (state) {
+                State.NO_POINTS -> 0
+                State.FIRST_POINT -> 1
+                State.SECOND_POINT -> 2
+            }
+        }
+
+        if (numPoints < 2) return
+        if (numPoints == 2) position0.mix(position1, 2.0, position2)
+        for (lane in createStreet().lanes) {
             drawLine(lane, 0.0, 0.0)
         }
     }
@@ -131,7 +165,11 @@ class UITest(sceneView: SceneView, val network: Network) :
                 state = when (state) {
                     State.NO_POINTS -> State.FIRST_POINT
                     State.FIRST_POINT -> State.SECOND_POINT
-                    State.SECOND_POINT -> State.FIRST_POINT // don't reuse middle
+                    State.SECOND_POINT -> {
+                        // don't reuse middle
+                        position0.set(position2)
+                        State.FIRST_POINT
+                    }
                 }
             }
             Key.BUTTON_RIGHT -> {
@@ -145,7 +183,7 @@ class UITest(sceneView: SceneView, val network: Network) :
         }
     }
 
-    fun placeStreet() {
+    fun createStreet(): Road {
         val numLanes = 6
         val numReversed = 3
         val from = List(numLanes) { idx ->
@@ -157,13 +195,17 @@ class UITest(sceneView: SceneView, val network: Network) :
         val to = List(numLanes) { idx ->
             getPoint(2, idx, numLanes)
         }
-        val lanes = List(6) {
-            if (it <= numReversed) {
-                Lane(to[it], control[it], from[it])
+        val lanes = List(6) { laneId ->
+            if (laneId < numReversed) {
+                Lane(to[laneId], control[laneId], from[laneId])
             } else {
-                Lane(from[it], control[it], to[it])
+                Lane(from[laneId], control[laneId], to[laneId])
             }
         }
-        network.addRoad(Road(lanes))
+        return Road(lanes)
+    }
+
+    fun placeStreet() {
+        network.addRoad(createStreet())
     }
 }
