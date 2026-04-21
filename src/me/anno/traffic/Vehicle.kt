@@ -12,6 +12,7 @@ class Vehicle {
 
     val route = ArrayList<Lane>()
     var routeIndex = 0 // we start at the first lane
+    var routeIndexF = 0f
 
     var prevSegment: Vehicle? = null
     var prevDistance = 5.0
@@ -44,28 +45,56 @@ class Vehicle {
         computeVelocityForDrivingOnLane()
         stopOnNextSection()
         stopIfAnythingTooClose()
-        moveOrCrash()
+        moveOrCrash(dt)
 
         updateBounds(dt)
     }
 
     fun computeVelocityForDrivingOnLane() {
-        // todo try to drive along road, all units are in meters
+        // try to drive along road, all units are in meters
+        val curr = route.getOrNull(routeIndex) ?: return
+        val nextT = curr.getClosestT(position, routeIndexF.toDouble())
+        if (nextT > 1f) {
+            routeIndex++
+            routeIndexF = nextT.toFloat() - 1f
+        } else {
+            routeIndexF = nextT.toFloat()
+        }
+
+        val tmp = Vector3d()
+        curr.getPosition(nextT + 0.1, 0.0, 0.0, tmp)
+        tmp.sub(position, targetVelocity).normalize(10.0)
         // todo if stuck (car-angle to lane-direction too large), try to turn around
     }
 
     fun stopOnNextSection() {
-        // todo if !route[routeIndex].mayEnterNextLane(route[routeIndex+1]), stop the car
+        // if !route[routeIndex].mayEnterNextLane(route[routeIndex+1]), stop the car
+        val curr = route.getOrNull(routeIndex) ?: return
+        val next = route.getOrNull(routeIndex + 1) ?: return
+        if (!curr.mayEnterNextLane(next)) {
+            // todo depending on current speed, and progress, we slow down gradually...
+            targetVelocity.set(0.0)
+        }
     }
 
     fun stopIfAnythingTooClose() {
         // todo respect vehicles in front of us (from route[routeIndex and routeIndex+1)
+        for (other in nearby) {
+            // todo check if we would crash into the side of other...
+            // todo check if other would crash into us...
+            targetVelocity.mul(0.5)
+        }
     }
 
-    fun moveOrCrash() {
+    fun moveOrCrash(dt: Float) {
         // todo step forward,
         //  implement pseudo-physics based on Verlet integration
         // todo also keep distance constraint to prevSegment
+        prevPosition.set(position)
+        position.fma(dt.toDouble(), targetVelocity)
+        if (targetVelocity.lengthSquared() > 1e-6) {
+            rotation.rotationYXZ(targetVelocity.angleY().toFloat(), 0f, 0f)
+        }
     }
 
     fun updateBounds(dt: Float) {

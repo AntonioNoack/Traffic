@@ -1,8 +1,10 @@
 package me.anno.traffic
 
 import me.anno.maths.Maths.sq
+import me.anno.maths.optimization.GoldenSectionSearch
 import org.joml.Quaternionf
 import org.joml.Vector3d
+import kotlin.math.abs
 
 data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) {
     var currSection: CrossingSection? = null
@@ -34,8 +36,19 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         val f0 = sq(1f - t)
         val f1 = 2f * (1f - t) * t
         val f2 = t * t
+        val f01 = f0 + f1
+        if (abs(f01) < 1e-30f) {
+            return dst.set(to.rotation)
+        }
         return from.rotation
-            .slerp(control.rotation, f1 / (f0 + f1), dst)
+            .slerp(control.rotation, f1 / f01, dst)
             .slerp(to.rotation, f2)
+    }
+
+    fun getClosestT(position: Vector3d, routeIndexF: Double): Double {
+        val tmp = Vector3d()
+        return GoldenSectionSearch.goldenSectionSearch(routeIndexF, 1.0, 1e-4, { t ->
+            getPosition(t, 0.0, 0.0, tmp).distanceSquared(position)
+        }, flipSign = false)
     }
 }

@@ -1,18 +1,31 @@
 package me.anno.traffic
 
+import me.anno.Time
+import me.anno.ecs.System
+import me.anno.ecs.annotations.DebugProperty
+import me.anno.ecs.systems.OnUpdate
 import me.anno.graph.octtree.KdTreePairs.queryPairs
 import me.anno.maths.Maths.sq
 import me.anno.traffic.utils.PointTree
 import me.anno.traffic.utils.VehicleTree
 import org.joml.Vector3d
 
-class Network {
+class Network: System(), OnUpdate {
 
     val vehicles = ArrayList<Vehicle>()
     val crossings = ArrayList<Crossing>()
     val lanes = ArrayList<Lane>()
-    val roads = ArrayList<Road>()
+    val streets = ArrayList<Street>()
     val points = HashSet<LanePoint>()
+
+    @DebugProperty
+    val numVehicles get() = vehicles.size
+
+    @DebugProperty
+    val numStreets get() = streets.size
+
+    @DebugProperty
+    val numPoints get() = points.size
 
     private val pointTree = PointTree()
     private val vehicleTree = VehicleTree()
@@ -34,6 +47,10 @@ class Network {
         }
     }
 
+    override fun onUpdate() {
+        update(Time.deltaTime.toFloat())
+    }
+
     fun update(dt: Float) {
         rebuildVehicleTree()
         findCloseVehicles()
@@ -52,26 +69,30 @@ class Network {
         vehicleTree.remove(vehicle)
     }
 
-    fun addRoad(road: Road) {
-        roads.add(road)
-        for (lane in road.lanes) {
+    fun addStreet(street: Street) {
+        streets.add(street)
+        for (lane in street.lanes) {
             addLane(lane)
         }
     }
 
     fun addLane(lane: Lane) {
         lanes.add(lane)
+        lane.from.lanes.add(lane)
+        lane.to.lanes.add(lane)
     }
 
-    fun removeRoad(road: Road) {
-        roads.remove(road)
-        for (lane in road.lanes) {
+    fun removeStreet(street: Street) {
+        streets.remove(street)
+        for (lane in street.lanes) {
             removeLane(lane)
         }
     }
 
     fun removeLane(lane: Lane) {
         lanes.remove(lane)
+        lane.from.lanes.remove(lane)
+        lane.to.lanes.remove(lane)
     }
 
     fun addCrossing(crossing: Crossing) {

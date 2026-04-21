@@ -1,8 +1,9 @@
 package me.anno.traffic
 
 import me.anno.Time
+import org.joml.Vector3d
 
-class Crossing {
+class Crossing(val center: Vector3d, val radius: Double) {
 
     val sections = ArrayList<CrossingSection>()
 
