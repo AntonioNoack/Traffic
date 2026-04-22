@@ -197,7 +197,8 @@ class Vehicle {
         val curr = route.getOrNull(routeIndex) ?: return targetV
 
         val nextT = curr.getClosestT(position, routeIndexF.toDouble())
-        if (nextT > 1.0 && routeIndex + 1 < route.size) {
+        val didAdvance = nextT > 1.0 && routeIndex + 1 < route.size
+        if (didAdvance) {
             routeIndex++
             routeIndexF = (nextT - 1.0).toFloat()
         } else {
@@ -205,6 +206,7 @@ class Vehicle {
         }
 
         val updatedCurr = route[routeIndex]
+        val prevCurr = if (didAdvance) curr else updatedCurr
 
         // Target look-ahead position for stable guidance
         val lookAheadT = min(1.0, routeIndexF.toDouble() + 0.15)
@@ -221,9 +223,9 @@ class Vehicle {
 
         var desiredSpeed = maxVelocity
 
-        // Stopping at lane end / signals
+        // Stopping at lane end / signals - check if we can enter the next lane
         val next = route.getOrNull(routeIndex + 1)
-        if (next != null && !updatedCurr.mayEnterNextLane(next)) {
+        if (next != null && !prevCurr.mayEnterNextLane(next)) {
             val distToNext = (1.0 - routeIndexF) * updatedCurr.approxLength
             val brakingDist = sq(velocity.length()) / (2.0 * 0.8 * 9.81)
             if (distToNext < brakingDist + 2.0) {
@@ -284,8 +286,8 @@ class Vehicle {
                 if ((i and 2) != 0) localBounds.maxY else localBounds.minY,
                 if ((i and 4) != 0) localBounds.maxZ else localBounds.minZ
             ).rotate(rotation)
-            boundsMin.min(tmpV.x.toDouble(), tmpV.y.toDouble(), tmpV.z.toDouble())
-            boundsMax.max(tmpV.x.toDouble(), tmpV.y.toDouble(), tmpV.z.toDouble())
+            boundsMin.min(tmpV)
+            boundsMax.max(tmpV)
         }
         boundsMin.add(position)
         boundsMax.add(position)
@@ -297,8 +299,8 @@ class Vehicle {
         if (vz > 0) boundsMax.z += vz else boundsMin.z += vz
 
         val extraScanRadius = 20.0
-        treeBoundsMin.set(boundsMin).sub(extraScanRadius, extraScanRadius, extraScanRadius)
-        treeBoundsMax.set(boundsMax).add(extraScanRadius, extraScanRadius, extraScanRadius)
+        treeBoundsMin.set(boundsMin).sub(extraScanRadius)
+        treeBoundsMax.set(boundsMax).add(extraScanRadius)
     }
 
     private fun sq(x: Double) = x * x
