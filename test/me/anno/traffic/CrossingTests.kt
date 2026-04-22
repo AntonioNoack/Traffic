@@ -171,6 +171,111 @@ class CrossingTests {
         assertTrue(crossing.mayDrive(1, 2))
     }
 
+    @Test
+    fun testVehicleCrossesIntersectionLikeUITest() {
+        val crossing = object : Crossing(Vector3d(0.0, 0.0, 0.0), 15.0) {
+            override fun mayDrive(from: Int, to: Int): Boolean = true
+        }
+
+        // Build the same kind of turn geometry UITest.kt creates:
+        // entry lane -> in-crossing connector -> exit lane.
+        val entry0 = createLanePoint(0.0, -100.0, PI * 0.5)
+        val entry1 = createLanePoint(0.0, -15.0, PI * 0.5)
+        val exit0 = createLanePoint(15.0, 0.0, 0.0)
+        val exit1 = createLanePoint(100.0, 0.0, 0.0)
+
+        val entryLane = createLane(entry0, createLanePoint(0.0, -50.0, PI * 0.5), entry1)
+
+        val entryDir = Vector3d(entryLane.getPosition(1.01, 0.0, 0.0, Vector3d()))
+            .sub(entry1.position)
+            .normalize()
+            .mul(10.0)
+        val exitLane = createLane(exit0, createLanePoint(50.0, 0.0, 0.0), exit1)
+        val exitDir = Vector3d(exitLane.getPosition(-0.01, 0.0, 0.0, Vector3d()))
+            .sub(exit0.position)
+            .normalize()
+            .mul(10.0)
+
+        val centerPoint = Vector3d(entry1.position).add(entryDir).mix(Vector3d(exit0.position).add(exitDir), 0.5)
+        val angle = (entry1.angle + exit0.angle) * 0.5
+        val turnLane = Lane(
+            entry1,
+            LanePoint(centerPoint, Quaternionf().rotationY(angle.toFloat()), angle, 2.0),
+            exit0
+        )
+
+        val csEntry = CrossingSection(crossing, 1)
+        val csTurn = CrossingSection(crossing, 0)
+        val csExit = CrossingSection(crossing, 2)
+        entryLane.crossingSection = csEntry
+        turnLane.crossingSection = csTurn
+        exitLane.crossingSection = csExit
+        crossing.sections.addAll(listOf(csEntry, csTurn, csExit))
+
+        val vehicle = Vehicle()
+        vehicle.route.add(entryLane)
+        vehicle.route.add(turnLane)
+        vehicle.route.add(exitLane)
+        vehicle.position.set(0.0, 0.0, -60.0)
+        vehicle.rotation.rotationY((PI * 0.5).toFloat())
+        vehicle.velocity.set(0.0, 0.0, 8.0)
+        vehicle.maxVelocity = 13.0
+
+        val dt = 0.05f
+        for (i in 0 until 400) {
+            vehicle.update(dt)
+        }
+
+        val forward = vehicle.rotation.transform(Vector3d(0.0, 0.0, 1.0))
+        assertFalse(vehicle.isCrashed)
+        assertTrue(vehicle.routeIndex >= 2, "Vehicle should have reached the exit lane")
+        assertTrue(vehicle.position.x > 20.0, "Vehicle should have crossed the intersection")
+        assertTrue(abs(forward.x) > abs(forward.z),
+            "Vehicle should be heading east after the turn, forward=$forward")
+    }
+
+    @Test
+    fun testVehiclesDoNotPassThroughAtCrossing() {
+        val crossing = TestCrossing(Vector3d(0.0, 0.0, 0.0), 15.0, initialAllowed = 0)
+
+        val lanePoints = createFourWayLanes(crossing)
+        for (cs in lanePoints.keys) {
+            lanePoints[cs]!!.forEach { it.crossingSection = cs }
+        }
+        crossing.sections.addAll(lanePoints.keys)
+
+        val northSouth = lanePoints[CrossingSection(crossing, 0)]!!
+        val westEast = lanePoints[CrossingSection(crossing, 3)]!!
+
+        val northVehicle = Vehicle()
+        northVehicle.route.addAll(northSouth)
+        northVehicle.position.set(0.0, 0.0, -60.0)
+        northVehicle.rotation.rotationY((PI * 0.5).toFloat())
+        northVehicle.velocity.set(0.0, 0.0, 8.0)
+        northVehicle.maxVelocity = 8.0
+
+        val westVehicle = Vehicle()
+        westVehicle.route.addAll(westEast)
+        westVehicle.position.set(-60.0, 0.0, 0.0)
+        westVehicle.rotation.rotationY(0f)
+        westVehicle.velocity.set(8.0, 0.0, 0.0)
+        westVehicle.maxVelocity = 8.0
+
+        northVehicle.nearby.add(westVehicle)
+        westVehicle.nearby.add(northVehicle)
+
+        val dt = 0.05f
+        for (i in 0 until 250) {
+            northVehicle.update(dt)
+            westVehicle.update(dt)
+        }
+
+        assertFalse(
+            northVehicle.position.z > 0.0 && westVehicle.position.x > 0.0,
+            "Vehicles should not pass through the crossing and end up on the far side"
+        )
+    }
+
     private fun createFourWayLanes(crossing: Crossing): Map<CrossingSection, List<Lane>> {
         // North to South (section 0)
         val pNS0 = createLanePoint(0.0, -100.0, PI * 0.5)

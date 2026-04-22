@@ -4,13 +4,12 @@ import me.anno.Time
 import me.anno.ecs.System
 import me.anno.ecs.annotations.DebugProperty
 import me.anno.ecs.systems.OnUpdate
-import me.anno.graph.octtree.KdTreePairs.queryPairs
 import me.anno.maths.Maths.sq
 import me.anno.traffic.utils.PointTree
 import me.anno.traffic.utils.VehicleTree
 import org.joml.Vector3d
 
-class Network: System(), OnUpdate {
+class Network : System(), OnUpdate {
 
     val vehicles = ArrayList<Vehicle>()
     val crossings = ArrayList<Crossing>()
@@ -40,10 +39,20 @@ class Network: System(), OnUpdate {
         for (vehicle in vehicles) {
             vehicle.nearby.clear()
         }
-        vehicleTree.queryPairs(0) { a, b ->
+        /*vehicleTree.queryPairs(0) { a, b ->
             a.nearby.add(b)
             b.nearby.add(a)
             false
+        }*/
+        val radius = 30.0
+        for (vehicle in vehicles) {
+            for (other in vehicles) {
+                if (vehicle === other) continue
+                if (vehicle.position.distanceSquared(other.position) < sq(radius)) {
+                    vehicle.nearby.add(other)
+                    other.nearby.add(vehicle)
+                }
+            }
         }
     }
 
@@ -56,6 +65,15 @@ class Network: System(), OnUpdate {
         findCloseVehicles()
         for (vehicle in vehicles) {
             vehicle.update(dt)
+        }
+        deleteCrashedVehicles()
+    }
+
+    fun deleteCrashedVehicles() {
+        vehicles.removeIf { vehicle ->
+            vehicle.isCrashed &&
+                    vehicle.time - vehicle.lastCollisionTime > 7.0 &&
+                    vehicle.velocity.lengthSquared() < 1e-6
         }
     }
 

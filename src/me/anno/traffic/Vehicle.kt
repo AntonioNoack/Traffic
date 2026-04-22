@@ -5,9 +5,16 @@ import org.joml.AABBf
 import org.joml.Quaternionf
 import org.joml.Vector3d
 import org.joml.Vector3f
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.*
 
 class Vehicle {
+
+    companion object {
+        private val nextId = AtomicInteger(0)
+    }
+
+    val id = nextId.incrementAndGet()
 
     val route = ArrayList<Lane>()
     var routeIndex = 0
@@ -42,6 +49,7 @@ class Vehicle {
     var maxVelocity = 13.0 // ~50km/h
 
     var isCrashed = false
+
     var time = 0.0
     var lastCollisionTime = -10.0
 
@@ -85,12 +93,14 @@ class Vehicle {
 
         // 3. Steering and Rotation
         val currentSpeed = velocity.length()
+        var targetHeading = atan2(forward.x, forward.z)
         if (currentSpeed > 0.1) {
             val targetLenSq = targetV.lengthSquared()
             if (targetLenSq > 1e-6) {
                 val invTargetLen = 1.0 / sqrt(targetLenSq)
                 val targetDirX = targetV.x * invTargetLen
                 val targetDirZ = targetV.z * invTargetLen
+                targetHeading = atan2(targetDirX, targetDirZ)
 
                 val localTargetX = targetDirX * right.x + targetDirZ * right.z
                 val localTargetZ = targetDirX * forward.x + targetDirZ * forward.z
@@ -106,17 +116,22 @@ class Vehicle {
         }
 
         val wheelbase = 2.5
-        val targetOmega = if (abs(vF) > 0.05) (vF / wheelbase) * tan(steeringAngle) else 0.0
+        val currentHeading = atan2(forward.x, forward.z)
+        val headingError = atan2(
+            sin(targetHeading - currentHeading),
+            cos(targetHeading - currentHeading)
+        )
+        val slipCorrection = if (abs(vR) > abs(vF) * 0.5) headingError * 12.0 else 0.0
+        // Use actual speed here so a vehicle can recover from a sideways start
+        // and still rotate toward the lane direction while moving.
+        val targetOmega = if (currentSpeed > 0.05) (currentSpeed / wheelbase) * tan(steeringAngle) + slipCorrection else 0.0
 
         // Stabilized (semi-implicit) angular velocity update
         val stiffness = 15.0
         val damping = 10.0
         angularVelocity = (angularVelocity + targetOmega * stiffness * dt) / (1.0 + (stiffness + damping) * dt)
 
-        // 4. Resolve Rectangle Collisions
-        resolveCollisions(dt)
-
-        // 5. Reversing prevention
+        // 4. Reversing prevention
         if (vF < -0.1 && (time - lastCollisionTime) > 0.5) {
             val stopForce = -vF / dt
             velocity.fma(stopForce * dt, forward)
@@ -124,6 +139,11 @@ class Vehicle {
         }
 
         moveOrCrash(dt)
+
+        // 5. Resolve collisions after motion, so frame-to-frame overlap is
+        // caught immediately instead of only after one vehicle has already
+        // passed through the other.
+        resolveCollisions(dt)
         updateBounds(dt)
     }
 
@@ -136,6 +156,10 @@ class Vehicle {
             .fma((localBounds.minZ + localBounds.maxZ) * 0.5, forwardA)
 
         for (other in nearby) {
+            // Resolve each pair only once per frame; this method may be called
+            // from both vehicles' updates.
+            if (id > other.id) continue
+
             val forwardB = other.rotation.transform(Vector3d(0.0, 0.0, 1.0))
             val rightB = other.rotation.transform(Vector3d(1.0, 0.0, 0.0))
             val hXB = (other.localBounds.maxX - other.localBounds.minX) * 0.5
@@ -168,13 +192,17 @@ class Vehicle {
                 val pushDir = Vector3d(mtvAxis)
                 if (relCenter.dot(pushDir) > 0) pushDir.mul(-1.0)
 
-                val pushF = pushDir.dot(forwardA)
-                val pushR = pushDir.dot(rightA)
-                val resolveAmount = minOverlap * 0.5
-                position.fma(resolveAmount * pushF, forwardA)
-                position.fma(resolveAmount * pushR * 0.15, rightA)
+                val resolveAmount = minOverlap * 0.5 + 1e-3
+                position.fma(resolveAmount, pushDir)
+                other.position.fma(-resolveAmount, pushDir)
 
                 val relVel = Vector3d(velocity).sub(other.velocity)
+                val normalVel = relVel.dot(pushDir)
+                if (normalVel < 0.0) {
+                    val halfCorrection = normalVel * 0.5
+                    velocity.fma(-halfCorrection, pushDir)
+                    other.velocity.fma(halfCorrection, pushDir)
+                }
                 val impactSpeed = relVel.length()
                 if (impactSpeed > 4.0 || minOverlap > 0.4) {
                     if (!isCrashed || !other.isCrashed) {
@@ -184,10 +212,12 @@ class Vehicle {
                         val torqueY =
                             if (distXZ > 1e-4) (relCenter.x * relVel.z - relCenter.z * relVel.x) * 0.5 / distXZ else 0.0
                         angularVelocity += clamp(torqueY, -15.0, 15.0)
-                        velocity.fma(impactSpeed * 0.3, pushDir)
+                        velocity.fma(impactSpeed * 0.15, pushDir)
+                        other.velocity.fma(-impactSpeed * 0.15, pushDir)
                     }
                 }
                 lastCollisionTime = time
+                other.lastCollisionTime = other.time
             }
         }
     }
@@ -198,18 +228,13 @@ class Vehicle {
 
         val nextT = curr.getClosestT(position, routeIndexF.toDouble())
         val didAdvance = nextT > 1.0 && routeIndex + 1 < route.size
-        if (didAdvance) {
-            routeIndex++
-            routeIndexF = (nextT - 1.0).toFloat()
-        } else {
-            routeIndexF = nextT.toFloat()
-        }
-
-        val updatedCurr = route[routeIndex]
-        val prevCurr = if (didAdvance) curr else updatedCurr
+        val updatedRouteIndex = if (didAdvance) routeIndex + 1 else routeIndex
+        val updatedRouteIndexF = if (didAdvance) nextT - 1.0 else nextT
+        val updatedCurr = route[updatedRouteIndex]
+        val next = route.getOrNull(routeIndex + 1)
 
         // Target look-ahead position for stable guidance
-        val lookAheadT = min(1.0, routeIndexF.toDouble() + 0.15)
+        val lookAheadT = min(1.0, updatedRouteIndexF + 0.15)
         val pTarget = updatedCurr.getPosition(lookAheadT, 0.0, 0.0, Vector3d())
 
         // Guidance vector: points from current position to a point on lane center ahead
@@ -224,9 +249,8 @@ class Vehicle {
         var desiredSpeed = maxVelocity
 
         // Stopping at lane end / signals - check if we can enter the next lane
-        val next = route.getOrNull(routeIndex + 1)
-        if (next != null && !prevCurr.mayEnterNextLane(next)) {
-            val distToNext = (1.0 - routeIndexF) * updatedCurr.approxLength
+        if (next != null && !curr.mayEnterNextLane(next)) {
+            val distToNext = (1.0 - routeIndexF.toDouble()) * curr.approxLength
             val brakingDist = sq(velocity.length()) / (2.0 * 0.8 * 9.81)
             if (distToNext < brakingDist + 2.0) {
                 desiredSpeed = 0.0
@@ -263,6 +287,10 @@ class Vehicle {
         }
 
         targetV.set(guidance).mul(desiredSpeed)
+
+        routeIndex = updatedRouteIndex
+        routeIndexF = updatedRouteIndexF.toFloat()
+
         return targetV
     }
 

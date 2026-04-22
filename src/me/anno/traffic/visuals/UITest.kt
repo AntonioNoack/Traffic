@@ -10,6 +10,7 @@ import me.anno.engine.debug.DebugLine
 import me.anno.engine.debug.DebugShapes
 import me.anno.engine.ui.render.SceneView.Companion.testSceneWithUI
 import me.anno.io.files.Reference.getReference
+import me.anno.maths.Maths
 import me.anno.maths.Maths.PIf
 import me.anno.maths.Maths.TAUf
 import me.anno.maths.Maths.mixAngle
@@ -37,10 +38,10 @@ fun main() {
 
     Systems.registerSystem(network)
 
-    // todo build some initial streets
+    // build some initial streets
     //  and build traffic meshes
 
-    // todo plus an intersection? would be great for testing :D
+    // plus an intersection? would be great for testing :D
 
     val n = 5
     val builder = StreetBuilder(network)
@@ -184,8 +185,10 @@ fun spawnVehicles(network: Network, streets: List<Street>) {
     for (i in streets.indices) {
         val street = streets[i]
         for (lane in street.lanes) {
-            val ts = 5
+            val ts = 7
             for (ti in 0 until ts) {
+                if (Maths.random() < 0.3f) continue
+
                 val vehicle = Vehicle()
                 val t = (ti + 0.5) / ts
                 lane.getPosition(t, 0.0, 0.0, vehicle.position)

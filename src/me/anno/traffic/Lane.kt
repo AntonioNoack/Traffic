@@ -58,7 +58,9 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
 
     fun getClosestT(position: Vector3d, routeIndexF: Double): Double {
         val tmp = Vector3d()
-        return GoldenSectionSearch.goldenSectionSearch(routeIndexF, 1.0, 1e-4, { t ->
+        // Allow the search to continue slightly past the lane endpoint so the
+        // caller can detect that the vehicle has crossed into the next lane.
+        return GoldenSectionSearch.goldenSectionSearch(routeIndexF, 1.5, 1e-4, { t ->
             getPosition(t, 0.0, 0.0, tmp).distanceSquared(position)
         }, flipSign = false)
     }

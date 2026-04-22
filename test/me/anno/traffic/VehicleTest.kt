@@ -97,6 +97,64 @@ class VehicleTest {
     }
 
     @Test
+    fun testVehiclesDoNotOverlapAfterHeadOnContact() {
+        val v1 = Vehicle()
+        v1.position.set(0.0, 0.0, 0.0)
+        v1.rotation.rotationY(0f)
+        v1.velocity.set(0.0, 0.0, 6.0)
+
+        val v2 = Vehicle()
+        v2.position.set(0.0, 0.0, 3.0)
+        v2.rotation.rotationY(0f)
+        v2.velocity.set(0.0, 0.0, -6.0)
+
+        v1.nearby.add(v2)
+        v2.nearby.add(v1)
+
+        val dt = 0.05f
+        for (i in 0 until 20) {
+            v1.update(dt)
+            v2.update(dt)
+        }
+
+        assertTrue(v1.position.distance(v2.position) >= 3.9, "Vehicles should not overlap after contact")
+    }
+
+    @Test
+    fun testFollowerDoesNotPassLeader() {
+        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
+        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
+        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
+        val lane = Lane(p0, p1, p2)
+
+        val leader = Vehicle()
+        leader.position.set(0.0, 0.0, 20.0)
+        leader.rotation.rotationY(0f)
+        leader.velocity.set(0.0, 0.0, 4.0)
+        leader.route.add(lane)
+        leader.maxVelocity = 4.0
+
+        val follower = Vehicle()
+        follower.position.set(0.0, 0.0, 0.0)
+        follower.rotation.rotationY(0f)
+        follower.velocity.set(0.0, 0.0, 9.0)
+        follower.route.add(lane)
+        follower.maxVelocity = 9.0
+
+        leader.nearby.add(follower)
+        follower.nearby.add(leader)
+
+        val dt = 0.05f
+        for (i in 0 until 200) {
+            leader.update(dt)
+            follower.update(dt)
+            assertTrue(follower.position.z <= leader.position.z + 0.01, "Follower must not pass the leader")
+        }
+
+        assertTrue(leader.position.z - follower.position.z >= 3.8, "Vehicles should keep a safe longitudinal gap")
+    }
+
+    @Test
     fun testDeterministicCrashSpin() {
         val v1 = Vehicle()
         v1.position.set(0.0, 0.0, 0.0)
