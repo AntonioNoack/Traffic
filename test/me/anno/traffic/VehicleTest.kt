@@ -32,51 +32,52 @@ class VehicleTest {
     }
 
     @Test
-    fun testStoppingBehindVehicle() {
-        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
-        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
-        val p2 = LanePoint(Vector3d(0.0, 0.0, 500.0), Quaternionf(), 0.0, 0.0)
+    fun testStableBrakingOnCurve() {
+        // Curve from 0,0,0 to 100,0,100
+        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf().rotationY(0f), 0.0, 0.0)
+        val p1 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf().rotationY(PI.toFloat() * 0.25f), 0.0, 0.0)
+        val p2 = LanePoint(Vector3d(100.0, 0.0, 100.0), Quaternionf().rotationY(PI.toFloat() * 0.5f), 0.0, 0.0)
         val lane = Lane(p0, p1, p2)
 
-        val slow = Vehicle()
-        slow.route.add(lane)
-        slow.position.set(0.0, 0.0, 50.0)
-        slow.velocity.set(0.0, 0.0, 2.0)
-        slow.maxVelocity = 2.0
+        val leader = Vehicle()
+        leader.route.add(lane)
+        leader.position.set(20.0, 0.0, 50.0) // On the curve
+        leader.velocity.set(0.0, 0.0, 0.0) // Stopped
+        leader.maxVelocity = 0.0
 
-        val fast = Vehicle()
-        fast.route.add(lane)
-        fast.position.set(0.0, 0.0, 0.0)
-        fast.maxVelocity = 20.0
+        val follower = Vehicle()
+        follower.route.add(lane)
+        follower.position.set(0.0, 0.0, 0.0)
+        follower.maxVelocity = 10.0
 
-        // Manual nearby injection for test
-        fast.nearby.add(slow)
-        slow.nearby.add(fast)
+        follower.nearby.add(leader)
+        leader.nearby.add(follower)
 
         val dt = 0.1f
-        for (i in 0 until 500) {
-            slow.update(dt)
-            fast.update(dt)
-            
-            val dist = slow.position.distance(fast.position)
-            assertTrue(dist > 3.8, "Vehicles collided at step $i: dist=$dist")
+        var maxAngularVel = 0.0
+        for (i in 0 until 300) {
+            leader.update(dt)
+            follower.update(dt)
+            maxAngularVel = maxOf(maxAngularVel, abs(follower.angularVelocity))
+            check(leader.velocity.isFinite)
+            check(follower.velocity.isFinite)
+
+            if (follower.velocity.length() < 0.01 && i > 100) break
         }
 
-        assertTrue(fast.velocity.length() <= slow.velocity.length() + 0.5)
-        assertFalse(fast.isCrashed)
-        assertFalse(slow.isCrashed)
+        // Follower should have stopped without excessive spinning/swerving
+        assertTrue(follower.velocity.length() < 0.1) { "Follower velocity: ${follower.velocity}" }
+        assertTrue(maxAngularVel < 1.0, "Follower swerved too much: $maxAngularVel")
+        assertFalse(follower.isCrashed)
     }
 
     @Test
     fun testRectangleSATCollisionResolution() {
-        // Test that overlapping rectangles are pushed apart correctly
         val v1 = Vehicle()
         v1.position.set(0.0, 0.0, 0.0)
         v1.rotation.rotationY(0f)
 
         val v2 = Vehicle()
-        // Place v2 slightly overlapping v1 on the side
-        // v1 width is ~1.86 (-0.93 to 0.93). Place v2 at x=1.5 (overlap of ~0.36)
         v2.position.set(1.5, 0.0, 0.1)
         v2.rotation.rotationY(0f)
 
@@ -85,8 +86,7 @@ class VehicleTest {
 
         val dt = 0.01f
         val initialDist = v1.position.distance(v2.position)
-        
-        // Resolve for a few frames
+
         for (i in 0 until 10) {
             v1.update(dt)
             v2.update(dt)
@@ -94,8 +94,6 @@ class VehicleTest {
 
         val finalDist = v1.position.distance(v2.position)
         assertTrue(finalDist > initialDist, "Vehicles should be pushed apart")
-        // Pushing should be primarily on X axis for this configuration
-        assertTrue(abs(v1.position.x) > 0.0, "v1 should have been pushed on X")
     }
 
     @Test

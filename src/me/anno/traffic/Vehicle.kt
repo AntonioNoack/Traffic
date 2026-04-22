@@ -46,9 +46,11 @@ class Vehicle {
     var lastCollisionTime = -10.0
 
     fun update(dt: Float) {
+        if (dt <= 0f) return
         time += dt
+
         if (isCrashed) {
-            val friction = 1.0 - dt * 1.5
+            val friction = exp(-dt * 1.5)
             velocity.mul(max(0.0, friction))
             angularVelocity *= max(0.0, friction)
             resolveCollisions(dt)
@@ -72,31 +74,44 @@ class Vehicle {
         val maxDec = 1.0 * 9.81
         val accelF = clamp(speedErr / dt, -maxDec, maxAcc)
         velocity.fma(accelF * dt, forward)
+        check(velocity.isFinite) { "Invalid velocity by $accelF * $dt * $forward" }
 
-        // 2. Lateral resistance
+        // 2. Lateral resistance (Tires gripping)
         val maxLateralG = 1.0
         val lateralFrictionAccel = -vR / dt
         val limitedLateralAccel = clamp(lateralFrictionAccel, -maxLateralG * 9.81, maxLateralG * 9.81)
         velocity.fma(limitedLateralAccel * dt, right)
+        check(velocity.isFinite)
 
         // 3. Steering and Rotation
-        if (targetV.lengthSquared() > 1e-4) {
-            val localTargetV = Vector3d(targetV).rotate(rotation.conjugate(Quaternionf()))
-            val desiredSteeringAngle = atan2(localTargetV.x, localTargetV.z)
-            val steeringSpeed = 2.0
-            val targetSteering = clamp(desiredSteeringAngle, -0.6, 0.6)
-            val steeringErr = targetSteering - steeringAngle
-            steeringAngle += clamp(steeringErr, -steeringSpeed * dt.toDouble(), steeringSpeed * dt.toDouble())
+        val currentSpeed = velocity.length()
+        if (currentSpeed > 0.1) {
+            val targetLenSq = targetV.lengthSquared()
+            if (targetLenSq > 1e-6) {
+                val invTargetLen = 1.0 / sqrt(targetLenSq)
+                val targetDirX = targetV.x * invTargetLen
+                val targetDirZ = targetV.z * invTargetLen
+
+                val localTargetX = targetDirX * right.x + targetDirZ * right.z
+                val localTargetZ = targetDirX * forward.x + targetDirZ * forward.z
+
+                val desiredSteeringAngle = atan2(localTargetX, localTargetZ)
+                val steeringSpeed = 2.0
+                val targetSteering = clamp(desiredSteeringAngle, -0.6, 0.6)
+                val steeringErr = targetSteering - steeringAngle
+                steeringAngle += clamp(steeringErr, -steeringSpeed * dt.toDouble(), steeringSpeed * dt.toDouble())
+            }
         } else {
             steeringAngle *= max(0.0, 1.0 - dt * 5.0)
         }
 
         val wheelbase = 2.5
-        val targetOmega = (vF / wheelbase) * tan(steeringAngle)
-        val angularStiffness = 10.0
-        val angularDamping = 5.0
-        val angularAccel = (targetOmega - angularVelocity) * angularStiffness - angularVelocity * angularDamping
-        angularVelocity += angularAccel * dt
+        val targetOmega = if (abs(vF) > 0.05) (vF / wheelbase) * tan(steeringAngle) else 0.0
+
+        // Stabilized (semi-implicit) angular velocity update
+        val stiffness = 15.0
+        val damping = 10.0
+        angularVelocity = (angularVelocity + targetOmega * stiffness * dt) / (1.0 + (stiffness + damping) * dt)
 
         // 4. Resolve Rectangle Collisions
         resolveCollisions(dt)
@@ -105,6 +120,7 @@ class Vehicle {
         if (vF < -0.1 && (time - lastCollisionTime) > 0.5) {
             val stopForce = -vF / dt
             velocity.fma(stopForce * dt, forward)
+            check(velocity.isFinite)
         }
 
         moveOrCrash(dt)
@@ -151,7 +167,7 @@ class Vehicle {
             if (colliding && mtvAxis != null) {
                 val pushDir = Vector3d(mtvAxis)
                 if (relCenter.dot(pushDir) > 0) pushDir.mul(-1.0)
-                
+
                 val pushF = pushDir.dot(forwardA)
                 val pushR = pushDir.dot(rightA)
                 val resolveAmount = minOverlap * 0.5
@@ -164,7 +180,9 @@ class Vehicle {
                     if (!isCrashed || !other.isCrashed) {
                         isCrashed = true
                         other.isCrashed = true
-                        val torqueY = (relCenter.x * relVel.z - relCenter.z * relVel.x) * 0.5 / relCenter.lengthXZ()
+                        val distXZ = relCenter.lengthXZ()
+                        val torqueY =
+                            if (distXZ > 1e-4) (relCenter.x * relVel.z - relCenter.z * relVel.x) * 0.5 / distXZ else 0.0
                         angularVelocity += clamp(torqueY, -15.0, 15.0)
                         velocity.fma(impactSpeed * 0.3, pushDir)
                     }
@@ -187,28 +205,35 @@ class Vehicle {
         }
 
         val updatedCurr = route[routeIndex]
-        val laneDir = Vector3d()
-        val p0 = updatedCurr.getPosition(routeIndexF.toDouble(), 0.0, 0.0, Vector3d())
-        val p1 = updatedCurr.getPosition(min(1.0, routeIndexF.toDouble() + 0.1), 0.0, 0.0, Vector3d())
 
-        if (p0.distanceSquared(p1) > 1e-6) {
-            laneDir.set(p1).sub(p0).normalize()
+        // Target look-ahead position for stable guidance
+        val lookAheadT = min(1.0, routeIndexF.toDouble() + 0.15)
+        val pTarget = updatedCurr.getPosition(lookAheadT, 0.0, 0.0, Vector3d())
+
+        // Guidance vector: points from current position to a point on lane center ahead
+        val guidance = Vector3d(pTarget).sub(position)
+        val guidanceLenSq = guidance.lengthSquared()
+        if (guidanceLenSq > 1e-8) {
+            guidance.mul(1.0 / sqrt(guidanceLenSq))
         } else {
-            laneDir.set(0.0, 0.0, 1.0).rotate(updatedCurr.getRotation(routeIndexF, Quaternionf()))
+            guidance.set(0.0, 0.0, 1.0).rotate(updatedCurr.getRotation(routeIndexF, Quaternionf()))
         }
 
         var desiredSpeed = maxVelocity
+
+        // Stopping at lane end / signals
         val next = route.getOrNull(routeIndex + 1)
         if (next != null && !updatedCurr.mayEnterNextLane(next)) {
             val distToNext = (1.0 - routeIndexF) * updatedCurr.approxLength
-            val brakingDist = sq(velocity.length()) / (2.0 * 0.7 * 9.81)
-            if (distToNext < brakingDist + 2.5) {
+            val brakingDist = sq(velocity.length()) / (2.0 * 0.8 * 9.81)
+            if (distToNext < brakingDist + 2.0) {
                 desiredSpeed = 0.0
             }
         } else if (next == null && routeIndex == route.size - 1 && routeIndexF > 0.98) {
             desiredSpeed = 0.0
         }
 
+        // Vehicle following
         val forward = rotation.transform(Vector3d(0.0, 0.0, 1.0))
         val currentSpeed = velocity.length()
         for (other in nearby) {
@@ -216,25 +241,26 @@ class Vehicle {
             val dot = toOther.dot(forward)
             if (dot > 0 && dot < 35.0) {
                 val lateralDist = Vector3d(toOther).fma(-dot, forward).length()
-                if (lateralDist < 2.2) {
-                    val gap = dot - 4.0
+                if (lateralDist < 2.5) {
+                    val gap = dot - 4.1
                     val otherSpeed = max(0.0, other.velocity.dot(forward))
-                    val safeGap = 2.0 + currentSpeed * 0.8
+
+                    // IDM-like following
+                    val safeGap = 2.5 + currentSpeed * 1.0 // 1.0s gap
                     if (gap < safeGap) {
-                        val gapFactor = clamp((gap - 0.5) / (safeGap - 0.5))
+                        val gapFactor = clamp(gap / safeGap)
                         val speedLimit = otherSpeed * gapFactor
                         desiredSpeed = min(desiredSpeed, speedLimit)
                     }
-                    if (gap < 0.0 && (currentSpeed - otherSpeed) > 5.0) {
+
+                    if (gap < -0.1 && (currentSpeed - otherSpeed) > 5.0) {
                         isCrashed = true
                     }
                 }
             }
         }
-        targetV.set(laneDir).mul(desiredSpeed)
-        val toLane = Vector3d(p0).sub(position)
-        toLane.fma(-toLane.dot(laneDir), laneDir)
-        targetV.add(toLane.mul(1.0))
+
+        targetV.set(guidance).mul(desiredSpeed)
         return targetV
     }
 
@@ -242,6 +268,8 @@ class Vehicle {
         prevPosition.set(position)
         prevRotation.set(rotation)
         rotation.rotateY((angularVelocity * dt).toFloat())
+        rotation.normalize()
+        check(rotation.isFinite) { "Invalid rotation by $angularVelocity * $dt" }
         position.fma(dt.toDouble(), velocity)
     }
 
@@ -256,8 +284,8 @@ class Vehicle {
                 if ((i and 2) != 0) localBounds.maxY else localBounds.minY,
                 if ((i and 4) != 0) localBounds.maxZ else localBounds.minZ
             ).rotate(rotation)
-            boundsMin.min(tmpV)
-            boundsMax.max(tmpV)
+            boundsMin.min(tmpV.x.toDouble(), tmpV.y.toDouble(), tmpV.z.toDouble())
+            boundsMax.max(tmpV.x.toDouble(), tmpV.y.toDouble(), tmpV.z.toDouble())
         }
         boundsMin.add(position)
         boundsMax.add(position)
@@ -267,7 +295,8 @@ class Vehicle {
         if (vx > 0) boundsMax.x += vx else boundsMin.x += vx
         if (vy > 0) boundsMax.y += vy else boundsMin.y += vy
         if (vz > 0) boundsMax.z += vz else boundsMin.z += vz
-        val extraScanRadius = 5.0
+
+        val extraScanRadius = 20.0
         treeBoundsMin.set(boundsMin).sub(extraScanRadius, extraScanRadius, extraScanRadius)
         treeBoundsMax.set(boundsMax).add(extraScanRadius, extraScanRadius, extraScanRadius)
     }

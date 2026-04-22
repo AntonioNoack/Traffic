@@ -9,7 +9,7 @@ class Crossing(val center: Vector3d, val radius: Double) {
 
     fun mayDrive(from: Int, to: Int): Boolean {
         // todo how can we implement right-before left?
-        val sectionCanDrive = (Time.gameTime / 5.0).toInt() % sections.size
+        val sectionCanDrive = 1 + (Time.gameTime / 5.0).toInt() % (sections.size - 1)
         return from == sectionCanDrive
     }
 }
