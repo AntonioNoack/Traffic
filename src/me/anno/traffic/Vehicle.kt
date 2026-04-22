@@ -164,7 +164,7 @@ class Vehicle {
                     if (!isCrashed || !other.isCrashed) {
                         isCrashed = true
                         other.isCrashed = true
-                        val torqueY = (relCenter.x * relVel.z - relCenter.z * relVel.x) * 0.5
+                        val torqueY = (relCenter.x * relVel.z - relCenter.z * relVel.x) * 0.5 / relCenter.lengthXZ()
                         angularVelocity += clamp(torqueY, -15.0, 15.0)
                         velocity.fma(impactSpeed * 0.3, pushDir)
                     }
@@ -256,8 +256,8 @@ class Vehicle {
                 if ((i and 2) != 0) localBounds.maxY else localBounds.minY,
                 if ((i and 4) != 0) localBounds.maxZ else localBounds.minZ
             ).rotate(rotation)
-            boundsMin.min(tmpV.x.toDouble(), tmpV.y.toDouble(), tmpV.z.toDouble())
-            boundsMax.max(tmpV.x.toDouble(), tmpV.y.toDouble(), tmpV.z.toDouble())
+            boundsMin.min(tmpV)
+            boundsMax.max(tmpV)
         }
         boundsMin.add(position)
         boundsMax.add(position)

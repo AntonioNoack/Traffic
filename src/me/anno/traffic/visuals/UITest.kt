@@ -76,67 +76,11 @@ fun main() {
         streets.add(street)
     }
 
-    fun createIntersection(
-        streets: List<Street>,
-        center: Vector3d, radius: Double,
-    ) {
-
-        fun isInside(lp: LanePoint): Boolean {
-            return center.distanceSquared(lp.position) < sq(radius)
-        }
-
-        // define all lane-combinations...
-        // find, which lanes need to be connected to others...
-        //  and then create meshes for them
-        val lanes = streets.flatMap { it.lanes }
-        val laneToStreet = streets
-            .flatMap { it.lanes.map { lane -> it to lane } }
-            .associate { it.second to it.first }
-        val entryLanes = lanes.filter { !isInside(it.from) && isInside(it.to) }
-        val exitLanes = lanes.filter { isInside(it.from) && !isInside(it.to) }
-
-        val crossing = Crossing(center, radius)
-        // todo split crossing into sections, so each part can drive at a time...
-
-        val newLanes = ArrayList<Lane>()
-        for (entry in entryLanes) {
-            for (exit in exitLanes) {
-                val entryPoint = entry.to
-                val exitPoint = exit.from
-
-                if (absAngleDiff(entryPoint.angle - exitPoint.angle) > PIf - 0.1f) {
-                    continue
-                }
-
-                val distance = (entryPoint.position.distance(center) + exitPoint.position.distance(center)) * 0.67
-                val entryDir = (entry.getPosition(1.01, 0.0, 0.0, Vector3d()) - entryPoint.position).normalize(distance)
-                val exitDir = (exit.getPosition(-0.01, 0.0, 0.0, Vector3d()) - exitPoint.position).normalize(distance)
-                val entryExtended = entryPoint.position + entryDir
-                val exitExtended = exitPoint.position + exitDir
-                val centerPoint = Vector3d(entryExtended)
-                    .mix(exitExtended, 0.5)
-
-                val angle = mixAngle(entryPoint.angle, exitPoint.angle, 0.5)
-                val control = LanePoint(centerPoint, Quaternionf().rotateY(angle.toFloat()), angle, builder.laneWidth)
-
-                val lane = Lane(entryPoint, control, exitPoint)
-                network.addLane(lane)
-                newLanes.add(lane)
-            }
-        }
-
-        addStreetMesh(Street(newLanes), scene)
-        debugDrawCircle(center, radius)
-
-        network.addCrossing(crossing)
-        for (lane in newLanes) {
-            network.addLane(lane)
-        }
-    }
-
     createIntersection(
+        network, scene,
         streets.subList(0, n),
         Vector3d(0.0), 30.0,
+        builder
     )
 
     for (i in 0 until n) {
@@ -145,7 +89,12 @@ fun main() {
             .mix(outer0, 0.3)
             .rotateY(angle)
         val j = posMod(i - 1, n)
-        createIntersection(listOf(streets[i], streets[i + n], streets[j + n]), center, 50.0)
+        createIntersection(
+            network, scene,
+            listOf(streets[i], streets[i + n], streets[j + n]),
+            center, 50.0,
+            builder
+        )
     }
 
     val carRef = getReference("/media/antonio/4TB WDRed/Assets/Quaternius/Cars.zip/SportsCar2.fbx/Scene.json")
@@ -155,6 +104,79 @@ fun main() {
 
     testSceneWithUI("Network Builder", scene) { sceneView ->
         sceneView.editControls = TrafficBuilderControls(sceneView, network)
+    }
+}
+
+fun createIntersection(
+    network: Network, scene: Entity,
+    streets: List<Street>,
+    center: Vector3d, radius: Double,
+    builder: StreetBuilder
+) {
+
+    fun isInside(lp: LanePoint): Boolean {
+        return center.distanceSquared(lp.position) < sq(radius)
+    }
+
+    // define all lane-combinations...
+    // find, which lanes need to be connected to others...
+    //  and then create meshes for them
+    val lanes = streets.flatMap { it.lanes }
+    val laneToStreet = streets
+        .flatMap { it.lanes.map { lane -> lane to it } }
+        .toMap()
+    val entryLanes = lanes.filter { !isInside(it.from) && isInside(it.to) }
+    val exitLanes = lanes.filter { isInside(it.from) && !isInside(it.to) }
+
+    val crossing = Crossing(center, radius)
+    val crossingSections = HashMap<Street?, CrossingSection>()
+    val center1 = crossingSections.getOrPut(null) { CrossingSection(crossing, 0) }
+
+    // todo split crossing into sections, so each part can drive at a time...
+
+    val newLanes = ArrayList<Lane>()
+    for (entry in entryLanes) {
+        for (exit in exitLanes) {
+            val entryPoint = entry.to
+            val exitPoint = exit.from
+
+            if (absAngleDiff(entryPoint.angle - exitPoint.angle) > PIf - 0.1f) {
+                continue
+            }
+
+            val entrySection = crossingSections.getOrPut(laneToStreet[entry]!!) {
+                CrossingSection(crossing, crossingSections.size)
+            }
+            entry.crossingSection = entrySection
+
+            val distance = (entryPoint.position.distance(center) + exitPoint.position.distance(center)) * 0.67
+            val entryDir = (entry.getPosition(1.01, 0.0, 0.0, Vector3d()) - entryPoint.position).normalize(distance)
+            val exitDir = (exit.getPosition(-0.01, 0.0, 0.0, Vector3d()) - exitPoint.position).normalize(distance)
+            val entryExtended = entryPoint.position + entryDir
+            val exitExtended = exitPoint.position + exitDir
+            val centerPoint = Vector3d(entryExtended)
+                .mix(exitExtended, 0.5)
+
+            val angle = mixAngle(entryPoint.angle, exitPoint.angle, 0.5)
+            val control = LanePoint(centerPoint, Quaternionf().rotateY(angle.toFloat()), angle, builder.laneWidth)
+
+            val lane = Lane(entryPoint, control, exitPoint)
+            network.addLane(lane)
+            newLanes.add(lane)
+
+            lane.crossingSection = center1
+
+        }
+    }
+
+    crossing.sections.addAll(crossingSections.values)
+
+    addStreetMesh(Street(newLanes), scene)
+    debugDrawCircle(center, radius)
+
+    network.addCrossing(crossing)
+    for (lane in newLanes) {
+        network.addLane(lane)
     }
 }
 

@@ -7,7 +7,9 @@ import org.joml.Vector3d
 import kotlin.math.abs
 
 data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) {
-    var currSection: CrossingSection? = null
+
+    var crossingSection: CrossingSection? = null
+
     val vehicles = ArrayList<Vehicle>()
 
     val approxLength: Double by lazy {
@@ -20,8 +22,8 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
     }
 
     fun mayEnterNextLane(nextLane: Lane): Boolean {
-        val curr = currSection
-        val next = nextLane.currSection
+        val curr = crossingSection
+        val next = nextLane.crossingSection
         if (curr == null || next == null) return true
         if (curr.crossing != next.crossing) return true
         return curr.crossing.mayDrive(curr.sectionId, next.sectionId)
