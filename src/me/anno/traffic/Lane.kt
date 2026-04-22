@@ -10,6 +10,15 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
     var currSection: CrossingSection? = null
     val vehicles = ArrayList<Vehicle>()
 
+    val approxLength: Double by lazy {
+        val p0 = from.position
+        val p1 = control.position
+        val p2 = to.position
+        val chord = p0.distance(p2)
+        val net = p0.distance(p1) + p1.distance(p2)
+        (chord + net) * 0.5
+    }
+
     fun mayEnterNextLane(nextLane: Lane): Boolean {
         val curr = currSection
         val next = nextLane.currSection
