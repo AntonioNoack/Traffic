@@ -19,7 +19,7 @@ class VehicleTest {
         val v1 = Vehicle()
         v1.route.add(lane)
         v1.position.set(0.0, 0.0, 0.0)
-        v1.maxVelocity = 10.0
+        v1.maxVelocity = 10f
 
         val dt = 0.1f
         for (i in 0 until 100) {
@@ -43,18 +43,18 @@ class VehicleTest {
         leader.route.add(lane)
         leader.position.set(20.0, 0.0, 50.0) // On the curve
         leader.velocity.set(0.0, 0.0, 0.0) // Stopped
-        leader.maxVelocity = 0.0
+        leader.maxVelocity = 0f
 
         val follower = Vehicle()
         follower.route.add(lane)
         follower.position.set(0.0, 0.0, 0.0)
-        follower.maxVelocity = 10.0
+        follower.maxVelocity = 10f
 
         follower.nearby.add(leader)
         leader.nearby.add(follower)
 
         val dt = 0.1f
-        var maxAngularVel = 0.0
+        var maxAngularVel = 0f
         for (i in 0 until 300) {
             leader.update(dt)
             follower.update(dt)
@@ -62,11 +62,11 @@ class VehicleTest {
             check(leader.velocity.isFinite)
             check(follower.velocity.isFinite)
 
-            if (follower.velocity.length() < 0.01 && i > 100) break
+            if (follower.velocity.lengthSquared() < 1e-4f && i > 100) break
         }
 
         // Follower should have stopped without excessive spinning/swerving
-        assertTrue(follower.velocity.length() < 0.1) { "Follower velocity: ${follower.velocity}" }
+        assertTrue(follower.velocity.lengthSquared() < 0.01) { "Follower velocity: ${follower.velocity}" }
         assertTrue(maxAngularVel < 1.0, "Follower swerved too much: $maxAngularVel")
         assertFalse(follower.isCrashed)
     }
@@ -132,14 +132,14 @@ class VehicleTest {
         leader.rotation.rotationY(0f)
         leader.velocity.set(0.0, 0.0, 4.0)
         leader.route.add(lane)
-        leader.maxVelocity = 4.0
+        leader.maxVelocity = 4f
 
         val follower = Vehicle()
         follower.position.set(0.0, 0.0, 0.0)
         follower.rotation.rotationY(0f)
         follower.velocity.set(0.0, 0.0, 9.0)
         follower.route.add(lane)
-        follower.maxVelocity = 9.0
+        follower.maxVelocity = 9f
 
         leader.nearby.add(follower)
         follower.nearby.add(leader)
@@ -206,8 +206,8 @@ class VehicleTest {
 
         // Sideways velocity should be heavily damped by tire grip (maxLateralG = 1.0)
         // 1.0G * 0.1s = 0.981 m/s reduction
-        val expectedReduction = 0.981
-        assertEquals(5.0 - expectedReduction, v1.velocity.x, 0.01)
+        val expectedReduction = 0.981f
+        assertEquals(5f - expectedReduction, v1.velocity.x, 0.01f)
     }
 
     @Test
@@ -219,7 +219,7 @@ class VehicleTest {
 
         val v = Vehicle()
         v.route.add(lane)
-        v.maxVelocity = 10.0
+        v.maxVelocity = 10f
 
         val dt = 0.1f
         for (i in 0 until 150) {
@@ -241,6 +241,8 @@ class VehicleTest {
         // No route or target velocity means it wants to stop
         // Let's manually inject a backward push
         v.velocity.set(0.0, 0.0, -2.0)
+
+        v.timeSinceCollision = 1f
         
         val dt = 0.1f
         v.update(dt)

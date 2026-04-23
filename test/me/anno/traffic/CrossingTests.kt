@@ -92,7 +92,7 @@ class CrossingTests {
         vehicle.route.addAll(northToSouthLane)
         vehicle.position.set(0.0, 0.0, -20.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
-        vehicle.maxVelocity = 13.0
+        vehicle.maxVelocity = 13f
 
         val initialSpeed = vehicle.velocity.length()
         assertTrue(initialSpeed < 0.1, "Vehicle should start stopped")
@@ -121,7 +121,7 @@ class CrossingTests {
         vehicle.route.addAll(northToSouthLane)
         vehicle.position.set(0.0, 0.0, -20.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
-        vehicle.maxVelocity = 13.0
+        vehicle.maxVelocity = 13f
         vehicle.velocity.set(0.0, 0.0, 5.0)
 
         vehicle.update(0.1f)
@@ -146,7 +146,7 @@ class CrossingTests {
         vehicle.route.addAll(northToSouthLane)
         vehicle.position.set(0.0, 0.0, -50.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
-        vehicle.maxVelocity = 13.0
+        vehicle.maxVelocity = 13f
         vehicle.velocity.set(0.0, 0.0, 10.0)
 
         vehicle.update(0.1f)
@@ -219,7 +219,7 @@ class CrossingTests {
         vehicle.position.set(0.0, 0.0, -60.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
         vehicle.velocity.set(0.0, 0.0, 8.0)
-        vehicle.maxVelocity = 13.0
+        vehicle.maxVelocity = 13f
 
         val dt = 0.05f
         for (i in 0 until 400) {
@@ -252,14 +252,14 @@ class CrossingTests {
         northVehicle.position.set(0.0, 0.0, -60.0)
         northVehicle.rotation.rotationY((PI * 0.5).toFloat())
         northVehicle.velocity.set(0.0, 0.0, 8.0)
-        northVehicle.maxVelocity = 8.0
+        northVehicle.maxVelocity = 8f
 
         val westVehicle = Vehicle()
         westVehicle.route.addAll(westEast)
         westVehicle.position.set(-60.0, 0.0, 0.0)
         westVehicle.rotation.rotationY(0f)
         westVehicle.velocity.set(8.0, 0.0, 0.0)
-        westVehicle.maxVelocity = 8.0
+        westVehicle.maxVelocity = 8f
 
         northVehicle.nearby.add(westVehicle)
         westVehicle.nearby.add(northVehicle)

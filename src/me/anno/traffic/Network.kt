@@ -4,9 +4,14 @@ import me.anno.Time
 import me.anno.ecs.System
 import me.anno.ecs.annotations.DebugProperty
 import me.anno.ecs.systems.OnUpdate
+import me.anno.engine.debug.DebugAABB
+import me.anno.engine.debug.DebugShapes
+import me.anno.graph.octtree.KdTreePairs.queryPairs
 import me.anno.maths.Maths.sq
 import me.anno.traffic.utils.PointTree
 import me.anno.traffic.utils.VehicleTree
+import me.anno.ui.UIColors
+import org.joml.AABBd
 import org.joml.Vector3d
 
 class Network : System(), OnUpdate {
@@ -39,20 +44,53 @@ class Network : System(), OnUpdate {
         for (vehicle in vehicles) {
             vehicle.nearby.clear()
         }
-        /*vehicleTree.queryPairs(0) { a, b ->
-            a.nearby.add(b)
-            b.nearby.add(a)
-            false
-        }*/
-        val radius = 30.0
-        for (vehicle in vehicles) {
-            for (other in vehicles) {
-                if (vehicle === other) continue
-                if (vehicle.position.distanceSquared(other.position) < sq(radius)) {
-                    vehicle.nearby.add(other)
-                    other.nearby.add(vehicle)
+
+        if (true) {
+            // todo this tree is buggy and sometimes forgets things... how???
+            //  debug-draw the bounds of all vehicles...
+            vehicleTree.queryPairs(0) { a, b ->
+                a.nearby.add(b)
+                b.nearby.add(a)
+                false
+            }
+            showVehicleBounds()
+            showVehicleTreeBounds()
+        } else {
+            val radius = Vehicle.extraScanRadius * 2.0
+            val radiusSq = sq(radius)
+            for (vehicle in vehicles) {
+                for (other in vehicles) {
+                    if (vehicle === other) continue
+                    if (vehicle.position.distanceSquared(other.position) < radiusSq) {
+                        vehicle.nearby.add(other)
+                        other.nearby.add(vehicle)
+                    }
                 }
             }
+        }
+    }
+
+    private fun showVehicleBounds() {
+        for (vehicle in vehicles) {
+            val aabb = DebugAABB(
+                AABBd()
+                    .setMin(vehicle.boundsMin)
+                    .setMax(vehicle.boundsMax),
+                -1, 0f
+            )
+            DebugShapes.showDebugAABB(aabb)
+        }
+    }
+
+    private fun showVehicleTreeBounds() {
+        for (vehicle in vehicles) {
+            val aabb = DebugAABB(
+                AABBd()
+                    .setMin(vehicle.treeBoundsMin)
+                    .setMax(vehicle.treeBoundsMax),
+                UIColors.midOrange, 0f
+            )
+            DebugShapes.showDebugAABB(aabb)
         }
     }
 
@@ -72,7 +110,7 @@ class Network : System(), OnUpdate {
     fun deleteCrashedVehicles() {
         vehicles.removeIf { vehicle ->
             vehicle.isCrashed &&
-                    vehicle.time - vehicle.lastCollisionTime > 7.0 &&
+                    vehicle.timeSinceCollision > 7f &&
                     vehicle.velocity.lengthSquared() < 1e-6
         }
     }
