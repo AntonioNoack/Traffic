@@ -10,13 +10,13 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
 
     var crossingSection: CrossingSection? = null
 
-    val approxLength: Double by lazy {
+    val approxLength: Float by lazy {
         val p0 = from.position
         val p1 = control.position
         val p2 = to.position
         val chord = p0.distance(p2)
         val net = p0.distance(p1) + p1.distance(p2)
-        (chord + net) * 0.5
+        (chord + net).toFloat() * 0.5f
     }
 
     fun mayEnterNextLane(nextLane: Lane): Boolean {
@@ -52,6 +52,10 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         return from.rotation
             .slerp(control.rotation, f1 / f01, dst)
             .slerp(to.rotation, f2)
+    }
+
+    fun getClosestT(position: Vector3d, routeIndexF: Float): Float {
+        return getClosestT(position, routeIndexF.toDouble()).toFloat()
     }
 
     fun getClosestT(position: Vector3d, routeIndexF: Double): Double {
