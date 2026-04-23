@@ -155,6 +155,58 @@ class VehicleTest {
     }
 
     @Test
+    fun testFollowerBrakesForPredictedLaneIntrusion() {
+        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
+        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
+        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
+        val lane = Lane(p0, p1, p2)
+
+        val follower = Vehicle()
+        follower.route.add(lane)
+        follower.position.set(0.0, 0.0, 0.0)
+        follower.rotation.rotationY(0f)
+        follower.velocity.set(0.0, 0.0, 18.0)
+        follower.maxVelocity = 18f
+
+        val intruder = Vehicle()
+        intruder.position.set(2.8, 0.0, 20.0)
+        intruder.rotation.rotationY((-PI * 0.5).toFloat())
+        intruder.velocity.set(-2.0, 0.0, 0.0)
+
+        follower.nearby.add(intruder)
+        intruder.nearby.add(follower)
+
+        val dt = 0.1f
+        for (i in 0 until 30) {
+            follower.update(dt)
+        }
+
+        assertTrue(follower.velocity.length() < 12.0f, "Follower should slow down for the predicted intrusion")
+        assertFalse(follower.isCrashed)
+    }
+
+    @Test
+    fun testLoneVehicleDoesNotCrash() {
+        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
+        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
+        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
+        val lane = Lane(p0, p1, p2)
+
+        val vehicle = Vehicle()
+        vehicle.route.add(lane)
+        vehicle.position.set(0.0, 0.0, 0.0)
+        vehicle.rotation.rotationY(0f)
+        vehicle.velocity.set(0.0, 0.0, 15.0)
+        vehicle.maxVelocity = 15f
+
+        val dt = 0.1f
+        for (i in 0 until 200) {
+            vehicle.update(dt)
+            assertFalse(vehicle.isCrashed, "A lone vehicle should not crash")
+        }
+    }
+
+    @Test
     fun testDeterministicCrashSpin() {
         val v1 = Vehicle()
         v1.position.set(0.0, 0.0, 0.0)

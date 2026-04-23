@@ -51,7 +51,7 @@ fun main() {
     for (i in 0 until n) {
         val angle = i * TAU / n
 
-        builder.position0.set(20.0, 1.0, 0.0).rotateY(angle)
+        builder.position0.set(30.0, 1.0, 0.0).rotateY(angle)
         builder.position1.set(110.0, 1.0, 0.0).rotateY(angle)
         builder.position2.set(outer0).rotateY(angle)
 
@@ -80,7 +80,7 @@ fun main() {
     createIntersection(
         network, scene,
         streets.subList(0, n),
-        Vector3d(0.0), 30.0,
+        Vector3d(0.0), 40.0,
         builder
     )
 
@@ -150,7 +150,7 @@ fun createIntersection(
             }
             entry.crossingSection = entrySection
 
-            val distance = (entryPoint.position.distance(center) + exitPoint.position.distance(center)) * 0.67
+            val distance = entryPoint.position.distance(exitPoint.position) * 0.67
             val entryDir = (entry.getPosition(1.01, 0.0, 0.0, Vector3d()) - entryPoint.position).normalize(distance)
             val exitDir = (exit.getPosition(-0.01, 0.0, 0.0, Vector3d()) - exitPoint.position).normalize(distance)
             val entryExtended = entryPoint.position + entryDir

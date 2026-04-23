@@ -45,7 +45,7 @@ class Network : System(), OnUpdate {
             vehicle.nearby.clear()
         }
 
-        if (true) {
+        if (false) {
             // todo this tree is buggy and sometimes forgets things... how???
             //  debug-draw the bounds of all vehicles...
             vehicleTree.queryPairs(0) { a, b ->
@@ -53,7 +53,6 @@ class Network : System(), OnUpdate {
                 b.nearby.add(a)
                 false
             }
-            showVehicleBounds()
             showVehicleTreeBounds()
         } else {
             val radius = Vehicle.extraScanRadius * 2.0
@@ -68,6 +67,8 @@ class Network : System(), OnUpdate {
                 }
             }
         }
+
+        showVehicleBounds()
     }
 
     private fun showVehicleBounds() {
