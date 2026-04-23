@@ -53,7 +53,7 @@ class Vehicle {
     var timeSinceCollision = -1f
 
     fun update(dt: Float) {
-        if (dt <= 0f) return
+        if (!(dt > 0f)) return
 
         if (isCrashed) {
             applyDrivingAfterCrash(dt)
@@ -70,7 +70,6 @@ class Vehicle {
         // Resolve collisions after motion, so frame-to-frame overlap is caught immediately
         // instead of only after one vehicle has already passed through the other.
         resolveCollisions()
-        updateBounds(dt)
     }
 
     private fun applyDrivingAfterCrash(dt: Float) {
@@ -429,18 +428,22 @@ class Vehicle {
         boundsMax.add(position)
     }
 
-    private fun updateTreeBounds(dt: Float) {
-        treeBoundsMin.set(boundsMin)
-        treeBoundsMax.set(boundsMax)
-
-        // apply 2s forward-looking window
-        val dt1 = max(2f, dt)
-        val vx = velocity.x * dt1
-        val vy = velocity.y * dt1
-        val vz = velocity.z * dt1
-        if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
-        if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
-        if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
+    fun updateTreeBounds(dt: Float) {
+        if (true) {
+            position.sub(extraScanRadius, treeBoundsMin)
+            position.add(extraScanRadius, treeBoundsMax)
+        } else {
+            treeBoundsMin.set(boundsMin)
+            treeBoundsMax.set(boundsMax)
+            // apply 2s forward-looking window
+            val dt1 = max(2f, dt)
+            val vx = velocity.x * dt1
+            val vy = velocity.y * dt1
+            val vz = velocity.z * dt1
+            if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
+            if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
+            if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
+        }
     }
 
     fun updateBounds(dt: Float) {

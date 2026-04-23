@@ -16,6 +16,11 @@ import org.joml.Vector3d
 
 class Network : System(), OnUpdate {
 
+    companion object {
+        val scanDistance = Vehicle.extraScanRadius * 2.0
+        val scanDistanceSq = sq(scanDistance)
+    }
+
     val vehicles = ArrayList<Vehicle>()
     val crossings = ArrayList<Crossing>()
     val lanes = ArrayList<Lane>()
@@ -32,43 +37,45 @@ class Network : System(), OnUpdate {
     val numPoints get() = points.size
 
     private val pointTree = PointTree()
-    private val vehicleTree = VehicleTree()
-    private fun rebuildVehicleTree() {
+    val vehicleTree = VehicleTree()
+    private fun rebuildVehicleTree(dt: Float) {
         vehicleTree.clear()
         for (vehicle in vehicles) {
+            vehicle.updateTreeBounds(dt)
             vehicleTree.add(vehicle)
         }
     }
+
+    var useVehicleTree = true
 
     private fun findCloseVehicles() {
         for (vehicle in vehicles) {
             vehicle.nearby.clear()
         }
 
-        if (false) {
-            // todo this tree is buggy and sometimes forgets things... how???
-            //  debug-draw the bounds of all vehicles...
+        if (useVehicleTree) {
             vehicleTree.queryPairs(0) { a, b ->
-                a.nearby.add(b)
-                b.nearby.add(a)
+                addVehiclePair(a, b)
                 false
             }
             showVehicleTreeBounds()
         } else {
-            val radius = Vehicle.extraScanRadius * 2.0
-            val radiusSq = sq(radius)
             for (vehicle in vehicles) {
                 for (other in vehicles) {
-                    if (vehicle === other) continue
-                    if (vehicle.position.distanceSquared(other.position) < radiusSq) {
-                        vehicle.nearby.add(other)
-                        other.nearby.add(vehicle)
-                    }
+                    addVehiclePair(vehicle, other)
                 }
             }
         }
 
         showVehicleBounds()
+    }
+
+    private fun addVehiclePair(vehicle: Vehicle, other: Vehicle) {
+        if (vehicle === other) return
+        if (vehicle.position.distanceSquared(other.position) < scanDistanceSq) {
+            vehicle.nearby.add(other)
+            other.nearby.add(vehicle)
+        }
     }
 
     private fun showVehicleBounds() {
@@ -100,12 +107,16 @@ class Network : System(), OnUpdate {
     }
 
     fun update(dt: Float) {
-        rebuildVehicleTree()
+        rebuildVehicleTree(dt)
         findCloseVehicles()
+        updateVehicles(dt)
+        deleteCrashedVehicles()
+    }
+
+    fun updateVehicles(dt: Float) {
         for (vehicle in vehicles) {
             vehicle.update(dt)
         }
-        deleteCrashedVehicles()
     }
 
     fun deleteCrashedVehicles() {
