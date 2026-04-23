@@ -22,6 +22,7 @@ class VehicleRenderer(
         callback: (IMesh, MaterialBase?, Transform) -> Boolean
     ) {
         val mesh = MeshCache[carMesh] ?: return
+
         val vehicles = network.vehicles
         for (i in vehicles.indices) {
             val vehicle = vehicles[i]

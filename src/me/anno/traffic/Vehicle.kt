@@ -100,7 +100,7 @@ class Vehicle {
     ) {
         // todo implement gears and shifting time
         // 1. Longitudinal control
-        val targetVF = targetV.dot(forward)
+        val targetVF = max(0f, targetV.dot(forward))
         val speedErr = targetVF - vF
         val maxAcc = 0.3f * 9.81f
         val maxDec = 1.0f * 9.81f
@@ -172,9 +172,8 @@ class Vehicle {
     }
 
     private fun applyReversingPrevention(vF: Float, dt: Float, forward: Vector3f) {
-        if (vF < -0.1f && timeSinceCollision > 0.5f) {
-            val stopForce = -vF / dt
-            velocity.fma(stopForce * dt, forward)
+        if (vF < 0f) {
+            velocity.fma(-vF, forward)
         }
     }
 
@@ -308,8 +307,9 @@ class Vehicle {
         // Stopping at lane end / signals - check if we can enter the next lane
         if (next != null && !canEnterNextLane) {
             val distToNext = (1.0 - routeIndexF.toDouble()) * curr.approxLength
+            val distToEnd = position.distance(curr.to.position)
             val brakingDist = sq(velocity.length()) / (2.0 * 0.8 * 9.81)
-            if (distToNext < brakingDist + 2.0 || nextT > 1.0) {
+            if (distToNext < brakingDist + 4.0 || distToEnd < brakingDist + 6.0) {
                 desiredSpeed = 0f
             }
         } else if (next == null && routeIndex == route.size - 1 && routeIndexF > 0.98) {
@@ -324,41 +324,100 @@ class Vehicle {
             val toOther = other.position.sub(position, Vector3d())
             val dot = toOther.dot(forward3).toFloat()
             if (dot > 0 && dot < 35f) {
-                val lateralDist = Vector3d(toOther).fma(-dot.toDouble(), forward3).length()
-                val gap = dot - 4.1f
-                val otherSpeed = max(0f, other.velocity.dot(other.rotation.transform(Vector3f(0.0, 0.0, 1.0))))
 
-                // Predict the other vehicle's near-term position, not just where it is right now.
-                // This makes us brake for cars that are moving into our lane or cutting across it.
-                val relativePos = Vector3d(toOther)
-                val relativeVel = Vector3d(other.velocity).sub(Vector3d(velocity))
-                val relVelLenSq = relativeVel.lengthSquared()
-                val predictionTime = if (relVelLenSq > 1e-6) {
-                    clamp((-(relativePos.dot(relativeVel)) / relVelLenSq).toFloat(), 0f, 1.5f)
-                } else 0f
-                val predictedToOther = relativePos.fma(predictionTime.toDouble(), relativeVel)
-                val predictedDot = predictedToOther.dot(forward3).toFloat()
-                val predictedLateralDist = Vector3d(predictedToOther).fma(-predictedDot.toDouble(), forward3).length()
-                val effectiveGap = min(gap, predictedDot - 4.1f)
-                val effectiveLateral = min(lateralDist, predictedLateralDist)
+                // old logic
+                run {
+                    val lateralDist = Vector3d(toOther).fma(-dot.toDouble(), forward3).length()
+                    val gap = dot - 4.1f
+                    val otherSpeed = max(0f, other.velocity.dot(other.rotation.transform(Vector3f(0.0, 0.0, 1.0))))
 
-                // IDM-like following
-                val safeGap = 2.5f + currentSpeed * 1f // 1.0s gap
-                if (effectiveLateral < 2.5f && effectiveGap < safeGap) {
-                    val gapFactor = clamp(effectiveGap / safeGap)
-                    val speedLimit = max(0f, otherSpeed * gapFactor)
-                    desiredSpeed = min(desiredSpeed, speedLimit)
+                    // Predict the other vehicle's near-term position, not just where it is right now.
+                    // This makes us brake for cars that are moving into our lane or cutting across it.
+                    val relativePos = Vector3d(toOther)
+                    val relativeVel = Vector3d(other.velocity).sub(Vector3d(velocity))
+                    val relVelLenSq = relativeVel.lengthSquared()
+                    val predictionTime = if (relVelLenSq > 1e-6) {
+                        clamp((-(relativePos.dot(relativeVel)) / relVelLenSq).toFloat(), 0f, 1.5f)
+                    } else 0f
+                    val predictedToOther = relativePos.fma(predictionTime.toDouble(), relativeVel)
+                    val predictedDot = predictedToOther.dot(forward3).toFloat()
+                    val predictedLateralDist =
+                        Vector3d(predictedToOther).fma(-predictedDot.toDouble(), forward3).length()
+                    val effectiveGap = min(gap, predictedDot - 4.1f)
+                    val effectiveLateral = min(lateralDist, predictedLateralDist)
+
+                    // IDM-like following
+                    val safeGap = 2.5f + currentSpeed * 1f // 1.0s gap
+                    if (effectiveLateral < 2.5f && effectiveGap < safeGap) {
+                        val gapFactor = clamp(effectiveGap / safeGap)
+                        val speedLimit = max(0f, otherSpeed * gapFactor)
+                        desiredSpeed = min(desiredSpeed, speedLimit)
+                    }
                 }
 
+                // new logic, which doesn't work in intersections correctly
+                if (false) {
+                    val lateralDist = Vector3d(toOther).fma(-dot.toDouble(), forward3).length()
+                    val gap = dot - 4.1f
+                    val otherSpeed = other.velocity.length()
+
+                    // Predict the other vehicle from its route when possible.
+                    // Drivers can see the intended path, so route geometry is the better signal.
+                    var effectiveGap = gap
+                    var effectiveLateral = lateralDist
+                    for (predictionTime in floatArrayOf(0.25f, 0.5f, 1.0f, 1.5f)) {
+                        val predictedToOther = Vector3d(predictRoutePosition(other, predictionTime)).sub(position)
+                        val predictedDot = predictedToOther.dot(forward3).toFloat()
+                        val predictedLateralDist = Vector3d(predictedToOther)
+                            .fma(-predictedDot.toDouble(), forward3)
+                            .length()
+                        if (predictedLateralDist < effectiveLateral) {
+                            effectiveLateral = predictedLateralDist
+                            effectiveGap = predictedDot - 4.1f
+                        }
+                    }
+
+                    // IDM-like following
+                    val safeGap = 2.5f + currentSpeed * 1f // 1.0s gap
+                    if (effectiveLateral < 2.5f && effectiveGap < safeGap) {
+                        val gapFactor = clamp(effectiveGap / safeGap)
+                        val speedLimit = max(0f, otherSpeed * gapFactor)
+                        desiredSpeed = min(desiredSpeed, speedLimit)
+                    }
+                }
             }
         }
-
         targetV.set(guidance).mul(desiredSpeed)
 
         routeIndex = updatedRouteIndex
         routeIndexF = updatedRouteIndexF.toFloat()
 
         return targetV
+    }
+
+    private fun predictRoutePosition(vehicle: Vehicle, timeAhead: Float): Vector3d {
+        val dst = Vector3d()
+        if (vehicle.route.isEmpty()) {
+            return dst.set(vehicle.position)
+        }
+
+        var remainingDistance = max(0.0, vehicle.velocity.length().toDouble() * timeAhead.toDouble())
+        var routeIndex = vehicle.routeIndex
+        var routeT = vehicle.routeIndexF.toDouble().coerceIn(0.0, 1.0)
+
+        while (true) {
+            val lane = vehicle.route.getOrNull(routeIndex) ?: return dst.set(vehicle.position)
+            val laneLength = max(1e-6, lane.approxLength)
+            val laneRemaining = (1.0 - routeT) * laneLength
+            if (remainingDistance <= laneRemaining || routeIndex >= vehicle.route.lastIndex) {
+                val targetT = (routeT + remainingDistance / laneLength).coerceIn(0.0, 1.0)
+                return lane.getPosition(targetT, 0.0, 0.0, dst)
+            }
+
+            remainingDistance -= laneRemaining
+            routeIndex++
+            routeT = 0.0
+        }
     }
 
     private fun applyVelocity(dt: Float) {

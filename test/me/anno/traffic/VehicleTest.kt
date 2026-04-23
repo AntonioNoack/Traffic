@@ -186,6 +186,49 @@ class VehicleTest {
     }
 
     @Test
+    fun testVehicleDoesNotReverseWhenBlocked() {
+        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
+        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
+        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
+        val lane = Lane(p0, p1, p2)
+
+        val follower = Vehicle()
+        follower.route.add(lane)
+        follower.position.set(0.0, 0.0, 0.0)
+        follower.rotation.rotationY(0f)
+        follower.velocity.set(0.0, 0.0, 12.0)
+        follower.maxVelocity = 12f
+
+        val blocker = Vehicle()
+        blocker.position.set(0.0, 0.0, 18.0)
+        blocker.rotation.rotationY(0f)
+        blocker.velocity.set(0.0, 0.0, 0.0)
+
+        follower.nearby.add(blocker)
+        blocker.nearby.add(follower)
+
+        val dt = 0.05f
+        var minVelocityZ = Float.POSITIVE_INFINITY
+        var minPositionZ = Double.POSITIVE_INFINITY
+        for (i in 0 until 200) {
+            follower.update(dt)
+            blocker.update(dt)
+            minVelocityZ = minOf(minVelocityZ, follower.velocity.z)
+            minPositionZ = minOf(minPositionZ, follower.position.z)
+            if (i % 20 == 0) {
+                println(
+                    "reverseStep=$i pos=${follower.position} vel=${follower.velocity} " +
+                            "routeIndex=${follower.routeIndex} routeIndexF=${follower.routeIndexF}"
+                )
+            }
+        }
+
+        assertFalse(follower.isCrashed)
+        assertTrue(minVelocityZ >= -0.01f, "Follower should never reverse, minVelocityZ=$minVelocityZ")
+        assertTrue(minPositionZ >= -0.01, "Follower should never move backwards, minPositionZ=$minPositionZ")
+    }
+
+    @Test
     fun testLoneVehicleDoesNotCrash() {
         val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
         val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)

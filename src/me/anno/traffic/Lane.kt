@@ -10,8 +10,6 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
 
     var crossingSection: CrossingSection? = null
 
-    val vehicles = ArrayList<Vehicle>()
-
     val approxLength: Double by lazy {
         val p0 = from.position
         val p1 = control.position

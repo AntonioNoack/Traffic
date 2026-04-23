@@ -100,6 +100,7 @@ fun main() {
 
     val carRef = getReference("/media/antonio/4TB WDRed/Assets/Quaternius/Cars.zip/SportsCar2.fbx/Scene.json")
     scene.add(VehicleRenderer(carRef, network))
+    scene.add(RandomNavigator(network))
 
     spawnVehicles(network, streets)
 
@@ -195,18 +196,22 @@ fun spawnVehicles(network: Network, streets: List<Street>) {
                 lane.getRotation(t.toFloat(), vehicle.rotation).rotateY(PIf) // why is this 180° necessary??
                 vehicle.route.add(lane)
 
-                var curr = lane
-                for (i in 0 until 10) {
-                    curr = curr.to.lanes
-                        .filter { it.from == curr.to }
-                        .randomOrNull() ?: break
-                    vehicle.route.add(curr)
+                for (i in 0 until 3) {
+                    extendRoute(vehicle)
                 }
 
                 network.addVehicle(vehicle)
             }
         }
     }
+}
+
+fun extendRoute(vehicle: Vehicle) {
+    var curr = vehicle.route.last()
+    curr = curr.to.lanes
+        .filter { it.from == curr.to }
+        .randomOrNull() ?: return
+    vehicle.route.add(curr)
 }
 
 fun debugDrawCircle(center: Vector3d, radius: Double) {
