@@ -1,14 +1,18 @@
 package me.anno.traffic
 
+import me.anno.maths.Maths.pow
 import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
 import org.joml.Quaternionf
 import org.joml.Vector3d
 import kotlin.math.abs
+import kotlin.math.min
+import kotlin.math.sqrt
 
 data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) {
 
     var crossingSection: CrossingSection? = null
+    var maxSpeed = computeMaxSpeed()
 
     val approxLength: Float by lazy {
         val p0 = from.position
@@ -65,5 +69,45 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         return GoldenSectionSearch.goldenSectionSearch(routeIndexF, 1.5, 1e-4, { t ->
             getPosition(t, 0.0, 0.0, tmp).distanceSquared(position)
         }, flipSign = false)
+    }
+
+    private fun curvatureRadius(t: Double): Double {
+        val p0 = from.position
+        val p1 = control.position
+        val p2 = to.position
+
+        val d1 = Vector3d(
+            2.0 * (1 - t) * (p1.x - p0.x) + 2.0 * t * (p2.x - p1.x),
+            2.0 * (1 - t) * (p1.y - p0.y) + 2.0 * t * (p2.y - p1.y),
+            2.0 * (1 - t) * (p1.z - p0.z) + 2.0 * t * (p2.z - p1.z)
+        )
+
+        val d2 = Vector3d(
+            2.0 * (p2.x - 2 * p1.x + p0.x),
+            2.0 * (p2.y - 2 * p1.y + p0.y),
+            2.0 * (p2.z - 2 * p1.z + p0.z)
+        )
+
+        val cross = d1.cross(d2, Vector3d())
+        val num = cross.length()
+        val denom = pow(d1.length(), 3.0)
+        if (denom < 1e-6) return Double.POSITIVE_INFINITY
+
+        val kappa = num / denom
+        return if (kappa < 1e-6) Double.POSITIVE_INFINITY else 1.0 / kappa
+    }
+
+    private fun computeMaxSpeed(): Float {
+
+        // 2 = cautious
+        // 3 = normal
+        // 4 = aggressive
+        val accel = 3.0 // m/s² (comfortable cornering)
+
+        val samples = listOf(0.25, 0.5, 0.75)
+        val minRadius = samples.minOf { curvatureRadius(it) }
+
+        val speed = sqrt(accel * minRadius)
+        return min(speed.toFloat(), 130f / 3.6f)
     }
 }

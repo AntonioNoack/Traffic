@@ -310,7 +310,8 @@ class Vehicle {
                 .rotate(updatedCurr.getRotation(routeIndexF, Quaternionf()))
         }
 
-        var desiredSpeed = maxVelocity
+        // todo slowly lerp between segments...
+        var desiredSpeed = min(curr.maxSpeed, maxVelocity)
 
         // Stopping at lane end / signals - check if we can enter the next lane
         if (next != null && !canEnterNextLane) {
