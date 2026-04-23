@@ -343,6 +343,11 @@ class Vehicle {
                 val gap = dot - pseudoCarDiameter
                 val otherSpeed = other.velocity.length()
 
+                // todo only apply this, if the car has waited some time,
+                //  and we're not just stopped for a traffic light...
+                //if (currentSpeed < 1.0 && otherSpeed < 1e-4 && id < other.id)
+                //    continue // ignore other car to resolve deadlocks (?)
+
                 // Predict the other vehicle from its route when possible.
                 // Drivers can see the intended path, so route geometry is the better signal.
                 var effectiveGap = gap

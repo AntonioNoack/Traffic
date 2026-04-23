@@ -16,6 +16,7 @@ import me.anno.maths.Maths.TAUf
 import me.anno.maths.Maths.mixAngle
 import me.anno.maths.Maths.posMod
 import me.anno.maths.Maths.sq
+import me.anno.maths.optimization.GoldenSectionSearch
 import me.anno.traffic.*
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
 import org.joml.Quaternionf
@@ -151,11 +152,20 @@ fun createIntersection(
             }
             entry.crossingSection = entrySection
 
-            val distance = entryPoint.position.distance(exitPoint.position) * 0.67
+            val distance0 = entryPoint.position.distance(exitPoint.position)
+            val distance = GoldenSectionSearch.goldenSectionSearch(0.3, 1.0, 0.01, { fac ->
+                val distance = distance0 * fac
+                val entryDir = (entry.getPosition(1.01, 0.0, 0.0, Vector3d()) - entryPoint.position).normalize(distance)
+                val exitDir = (exit.getPosition(-0.01, 0.0, 0.0, Vector3d()) - exitPoint.position).normalize(distance)
+                val entryExtended = entryPoint.position + entryDir
+                val exitExtended = exitPoint.position + exitDir
+                entryExtended.distanceSquared(exitExtended)
+            }) * distance0
             val entryDir = (entry.getPosition(1.01, 0.0, 0.0, Vector3d()) - entryPoint.position).normalize(distance)
             val exitDir = (exit.getPosition(-0.01, 0.0, 0.0, Vector3d()) - exitPoint.position).normalize(distance)
             val entryExtended = entryPoint.position + entryDir
             val exitExtended = exitPoint.position + exitDir
+
             val centerPoint = Vector3d(entryExtended)
                 .mix(exitExtended, 0.5)
 
