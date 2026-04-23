@@ -1,6 +1,7 @@
 package me.anno.traffic
 
 import me.anno.maths.Maths.clamp
+import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.sq
 import org.joml.AABBf
 import org.joml.Quaternionf
@@ -13,7 +14,7 @@ class Vehicle {
 
     companion object {
         private val nextId = AtomicInteger(0)
-        private val predictionTimes = floatArrayOf(0.25f, 0.5f, 1.0f, 1.5f)
+        private val predictionTimes = floatArrayOf(0f, 0.5f, 1.0f, 1.5f)
         val extraScanRadius = 20.0
     }
 
@@ -291,8 +292,13 @@ class Vehicle {
 
         // Target look-ahead position for stable guidance
         val dt = clamp(0.5f * velocity.length() / curr.approxLength, 0.01f, 0.2f)
-        val lookAheadT = min(1f, updatedRouteIndexF + dt)
-        val pTarget = updatedCurr.getPosition(lookAheadT.toDouble(), 0.0, 0.0, Vector3d())
+        var lookAheadT = updatedRouteIndexF + dt
+        var targetSegment = updatedCurr
+        if (lookAheadT > 1f && updatedRouteIndex + 1 < route.size) {
+            lookAheadT -= 1f
+            targetSegment = route[updatedRouteIndex + 1]
+        }
+        val pTarget = targetSegment.getPosition(lookAheadT.toDouble(), 0.0, 0.0, Vector3d())
 
         // Guidance vector: points from current position to a point on lane center ahead
         val guidance = Vector3d(pTarget).sub(position)
@@ -326,8 +332,12 @@ class Vehicle {
             val dot = toOther.dot(forward)
             if (dot > 0f && dot < 35f) {
 
-                val safetyDistance = 0.5f
+                val safetyDistance = mix(0.2f, 1.2f, clamp(currentSpeed / 20f))
+
                 // half of each, plus safety
+                // "lerp" between deltaX and deltaZ depending on the relative vehicle angle, and position...
+                // val deltaAngle = rotation.getEulerAngleYXZvY() - other.rotation.getEulerAngleYXZvY()
+                // val relativeAngle = abs(sin(deltaAngle))
                 val pseudoCarDiameter = (localBounds.deltaZ + other.localBounds.deltaZ) * 0.5f + safetyDistance
                 val lateralDist = toOther.fmaDistance(dot, forward)
                 val gap = dot - pseudoCarDiameter
@@ -429,25 +439,16 @@ class Vehicle {
     }
 
     fun updateTreeBounds(dt: Float) {
-        if (true) {
-            position.sub(extraScanRadius, treeBoundsMin)
-            position.add(extraScanRadius, treeBoundsMax)
-        } else {
-            treeBoundsMin.set(boundsMin)
-            treeBoundsMax.set(boundsMax)
-            // apply 2s forward-looking window
-            val dt1 = max(2f, dt)
-            val vx = velocity.x * dt1
-            val vy = velocity.y * dt1
-            val vz = velocity.z * dt1
-            if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
-            if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
-            if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
-        }
-    }
+        treeBoundsMin.set(boundsMin).sub(3.0)
+        treeBoundsMax.set(boundsMax).add(3.0)
 
-    fun updateBounds(dt: Float) {
-        updateStrictBounds()
-        updateTreeBounds(dt)
+        // apply 2s forward-looking window
+        val dt1 = max(2f, dt)
+        val vx = velocity.x * dt1
+        val vy = velocity.y * dt1
+        val vz = velocity.z * dt1
+        if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
+        if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
+        if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
     }
 }

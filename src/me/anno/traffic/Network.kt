@@ -16,11 +16,6 @@ import org.joml.Vector3d
 
 class Network : System(), OnUpdate {
 
-    companion object {
-        val scanDistance = Vehicle.extraScanRadius * 2.0
-        val scanDistanceSq = sq(scanDistance)
-    }
-
     val vehicles = ArrayList<Vehicle>()
     val crossings = ArrayList<Crossing>()
     val lanes = ArrayList<Lane>()
@@ -46,36 +41,19 @@ class Network : System(), OnUpdate {
         }
     }
 
-    var useVehicleTree = true
-
     private fun findCloseVehicles() {
         for (vehicle in vehicles) {
             vehicle.nearby.clear()
         }
 
-        if (useVehicleTree) {
-            vehicleTree.queryPairs(0) { a, b ->
-                addVehiclePair(a, b)
-                false
-            }
-            showVehicleTreeBounds()
-        } else {
-            for (vehicle in vehicles) {
-                for (other in vehicles) {
-                    addVehiclePair(vehicle, other)
-                }
-            }
+        vehicleTree.queryPairs(0) { a, b ->
+            a.nearby.add(b)
+            b.nearby.add(a)
+            false
         }
+        showVehicleTreeBounds()
 
         showVehicleBounds()
-    }
-
-    private fun addVehiclePair(vehicle: Vehicle, other: Vehicle) {
-        if (vehicle === other) return
-        if (vehicle.position.distanceSquared(other.position) < scanDistanceSq) {
-            vehicle.nearby.add(other)
-            other.nearby.add(vehicle)
-        }
     }
 
     private fun showVehicleBounds() {
