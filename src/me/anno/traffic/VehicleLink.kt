@@ -1,7 +1,7 @@
 package me.anno.traffic
 
 class VehicleLink(
-    val linkedTo: Vehicle,
-    val linkFromDistance: Float,
-    val linkToDistance: Float,
+    val engine: Vehicle,
+    val linkToEngine: Float,
+    val linkToTrailer: Float,
 )

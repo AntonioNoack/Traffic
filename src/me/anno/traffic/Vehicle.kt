@@ -15,16 +15,16 @@ class Vehicle {
     companion object {
         private val nextId = AtomicInteger(0)
         private val predictionTimes = floatArrayOf(0f, 0.5f, 1.0f, 1.5f)
-        val extraScanRadius = 20.0
     }
 
     val id = nextId.incrementAndGet()
 
-    val route = ArrayList<Lane>()
+    var route = ArrayList<Lane>()
     var routeIndex = 0
     var routeIndexF = 0f
 
     var linkToEngine: VehicleLink? = null
+    val isTrailer get() = linkToEngine != null
 
     val localBounds = AABBf()
         .setMin(-0.93f, 0.0f, -2.0f)
@@ -55,8 +55,11 @@ class Vehicle {
     fun update(dt: Float) {
         if (!(dt > 0f)) return
 
+        val link = linkToEngine
         if (isCrashed) {
             applyDrivingAfterCrash(dt)
+        } else if (link != null) {
+            applyTrailerFollowing(link, dt)
         } else {
             applyMindfulDriving(dt)
         }
@@ -72,6 +75,13 @@ class Vehicle {
         resolveCollisions()
     }
 
+    fun attachTrailer(trailer: Vehicle, fromDist: Float, toDist: Float) {
+        trailer.linkToEngine = VehicleLink(this, fromDist, toDist)
+        trailer.position.set(position)
+            .sub(rotation.transform(Vector3f(0f, 0f, fromDist + toDist)))
+        trailer.route = route
+    }
+
     private fun applyDrivingAfterCrash(dt: Float) {
         timeSinceCollision += dt
         val friction = exp(-dt * 1.5f)
@@ -80,54 +90,94 @@ class Vehicle {
     }
 
     private fun applyMindfulDriving(dt: Float) {
-        val targetV = computeTargetVelocity()
+        val targetVelocity = computeTargetVelocity()
         val forward = rotation.transform(Vector3f(0.0, 0.0, 1.0))
         val right = rotation.transform(Vector3f(1.0, 0.0, 0.0))
 
         val vF = velocity.dot(forward)
         val vR = velocity.dot(right)
 
-        applyRollingVelocity(targetV, right, forward, vR, vF, dt)
-        applySteering(targetV, right, forward, vR, vF, dt)
+        applyRollingVelocity(targetVelocity, right, forward, vR, vF, dt)
+        applySteering(targetVelocity, right, forward, vR, vF, dt)
 
-        applyReversingPrevention(vF, dt, forward)
+        applyReversingPrevention(vF, forward)
     }
 
+    private fun applyTrailerFollowing(link: VehicleLink, dt: Float) {
+
+        if (link.engine.isCrashed) {
+            markAsCrashed()
+            timeSinceCollision = link.engine.timeSinceCollision
+            return
+        }
+
+        val desiredPos = calculateTrailingPosition(link)
+        val toTarget = desiredPos.sub(position, Vector3f())
+
+        val scale = 1f / dt // catch up this very frame :3
+        toTarget.mul(scale, velocity)
+
+        // Steering
+        val damping = 6f
+        val velocity = velocity
+        if (velocity.lengthSquared() > 1e-3f) {
+
+            val forward = rotation.transform(Vector3f(0f, 0f, 1f))
+
+            val headingError = -atan2(
+                forward.x * velocity.z - forward.z * velocity.x, // cross
+                forward.x * velocity.x + forward.z * velocity.z // dot
+            )
+
+            val stiffness = 10f
+            val targetOmega = headingError * stiffness * clamp(velocity.length() * 0.3f)
+            angularVelocity += targetOmega * dt
+            angularVelocity *= exp(-(damping + targetOmega) * dt)
+
+        } else {
+            angularVelocity *= exp(-damping * dt)
+        }
+    }
+
+    var maxAcceleration = 0.3f * 9.81f
+    var maxDeceleration = 1.0f * 9.81f
+
+    /**
+     * tire grip
+     * */
+    var maxLateralAcceleration = 1.0f * 9.81f
+
     private fun applyRollingVelocity(
-        targetV: Vector3f,
+        targetVelocity: Vector3f,
         right: Vector3f, forward: Vector3f,
         vR: Float, vF: Float, dt: Float,
     ) {
         // todo implement gears and shifting time
         // 1. Longitudinal control
-        val targetVF = max(0f, targetV.dot(forward))
+        val targetVF = max(0f, targetVelocity.dot(forward))
         val speedErr = targetVF - vF
-        val maxAcc = 0.3f * 9.81f
-        val maxDec = 1.0f * 9.81f
-        val accelF = clamp(speedErr / dt, -maxDec, maxAcc)
+        val accelF = clamp(speedErr / dt, -maxDeceleration, maxAcceleration)
         velocity.fma(accelF * dt, forward)
 
         // 2. Lateral resistance (Tires gripping)
-        val maxLateralAcc = 1.0f * 9.81f
         val lateralFrictionAccel = -vR / dt
-        val limitedLateralAccel = clamp(lateralFrictionAccel, -maxLateralAcc, maxLateralAcc)
+        val limitedLateralAccel = clamp(lateralFrictionAccel, -maxLateralAcceleration, maxLateralAcceleration)
         velocity.fma(limitedLateralAccel * dt, right)
     }
 
     private fun applySteering(
-        targetV: Vector3f,
+        targetVelocity: Vector3f,
         right: Vector3f, forward: Vector3f,
         vR: Float, vF: Float, dt: Float,
     ) {
         // 3. Steering and Rotation
         val currentSpeed = velocity.length()
         var targetHeading = atan2(forward.x, forward.z)
-        if (currentSpeed > 0.1) {
-            val targetLenSq = targetV.lengthSquared()
-            if (targetLenSq > 1e-6) {
-                val invTargetLen = 1f / sqrt(targetLenSq)
-                val targetDirX = targetV.x * invTargetLen
-                val targetDirZ = targetV.z * invTargetLen
+        if (currentSpeed > 0.1f) {
+            val targetLenSq = targetVelocity.lengthSquared()
+            if (targetLenSq > 1e-6f) {
+                val targetDirX = targetVelocity.x
+                val targetDirZ = targetVelocity.z
                 targetHeading = atan2(targetDirX, targetDirZ)
 
                 val localTargetX = targetDirX * right.x + targetDirZ * right.z
@@ -140,6 +190,7 @@ class Vehicle {
                 steeringAngle += clamp(steeringErr, -steeringSpeed * dt, steeringSpeed * dt)
             }
         } else {
+            // undo steering
             steeringAngle *= exp(-dt * 5f)
         }
 
@@ -171,17 +222,30 @@ class Vehicle {
         angularVelocity = (angularVelocity + targetOmega * stiffness * dt) / (1f + (stiffness + damping) * dt)
     }
 
-    private fun applyReversingPrevention(vF: Float, dt: Float, forward: Vector3f) {
-        if (vF < 0f) {
+    private fun applyReversingPrevention(vF: Float, forward: Vector3f) {
+        if (vF < 0f && timeSinceCollision > 0.5f) {
             velocity.fma(-vF, forward)
         }
+    }
+
+    private val linkRoot: Vehicle
+        get() {
+            var root = this
+            while (true) {
+                root = root.linkToEngine?.engine ?: break
+            }
+            return root
+        }
+
+    private fun isLinkedTo(other: Vehicle): Boolean {
+        return linkRoot === other.linkRoot
     }
 
     private fun resolveCollisions() {
         for (other in nearby) {
             // Resolve each pair only once per frame; this method may be called
             // from both vehicles' updates.
-            if (id > other.id) continue
+            if (id > other.id || isLinkedTo(other)) continue
 
             // The neighbor may not have updated its cached bounds yet when we are
             // called from a single vehicle update, so refresh it from the current pose.
@@ -204,15 +268,20 @@ class Vehicle {
                     velocity.fma(-halfCorrection, pushDir)
                     other.velocity.fma(halfCorrection, pushDir)
                 }
+
                 val impactSpeed = relVel.length()
                 if (impactSpeed > 4.0 || minOverlap > 0.4) {
                     if (!isCrashed || !other.isCrashed) {
-                        isCrashed = true
-                        other.isCrashed = true
+                        markAsCrashed()
+                        other.markAsCrashed()
+
                         val distXZ = relCenter.lengthXZ()
-                        val torqueY =
-                            if (distXZ > 1e-4) (relCenter.x * relVel.z - relCenter.z * relVel.x) * 0.5f / distXZ else 0f
-                        angularVelocity += clamp(torqueY, -15f, 15f)
+                        var torqueY = (relCenter.x * relVel.z - relCenter.z * relVel.x) * 0.5f / (distXZ + 1e-4f)
+                        torqueY = clamp(torqueY, -15f, 15f)
+
+                        angularVelocity += torqueY
+                        other.angularVelocity -= torqueY
+
                         velocity.fma(impactSpeed * 0.15f, pushDir)
                         other.velocity.fma(-impactSpeed * 0.15f, pushDir)
                     }
@@ -220,6 +289,19 @@ class Vehicle {
                 timeSinceCollision = 0f
                 other.timeSinceCollision = 0f
             }
+        }
+    }
+
+    private fun markAsCrashed() {
+        var self = this
+        while (true) {
+            if (self.isCrashed) break
+
+            self.isCrashed = true
+            self.timeSinceCollision = 0f
+            val prevSelf = self
+            self = self.linkToEngine?.engine ?: break
+            prevSelf.linkToEngine = null // unlink trailers at crash
         }
     }
 
@@ -278,13 +360,12 @@ class Vehicle {
     }
 
     private fun computeTargetVelocity(): Vector3f {
-        val targetV = Vector3f()
-        val curr = route.getOrNull(routeIndex) ?: return targetV
+        val curr = route.getOrNull(routeIndex) ?: return Vector3f()
 
         val nextT = curr.getClosestT(position, routeIndexF)
         val didAdvance = nextT > 1f && routeIndex + 1 < route.size
         val next = route.getOrNull(routeIndex + 1)
-        val canEnterNextLane = next == null || curr.mayEnterNextLane(next)
+        val canEnterNextLane = next == null || isTrailer || curr.mayEnterNextLane(next)
         val updatedRouteIndex = if (didAdvance && canEnterNextLane) routeIndex + 1 else routeIndex
         val updatedRouteIndexF = if (didAdvance && canEnterNextLane) nextT - 1f else min(nextT, 1f)
         val updatedCurr = route[updatedRouteIndex]
@@ -300,18 +381,34 @@ class Vehicle {
         val pTarget = targetSegment.getPosition(lookAheadT.toDouble(), 0.0, 0.0, Vector3d())
 
         // Guidance vector: points from current position to a point on lane center ahead
-        val guidance = Vector3d(pTarget).sub(position)
+        val guidance = pTarget.sub(position, Vector3f())
         val guidanceLenSq = guidance.lengthSquared()
         if (guidanceLenSq > 1e-8) {
             guidance.div(sqrt(guidanceLenSq))
         } else {
-            guidance.set(0.0, 0.0, 1.0)
+            guidance.set(0f, 0f, 1f)
                 .rotate(updatedCurr.getRotation(routeIndexF, Quaternionf()))
         }
 
         // todo slowly lerp between segments...
         var desiredSpeed = min(curr.maxSpeed, maxVelocity)
 
+        desiredSpeed = stopAtSignals(desiredSpeed, curr, next, canEnterNextLane)
+        desiredSpeed = followOtherVehicles(desiredSpeed)
+
+        guidance.mul(desiredSpeed)
+
+        routeIndex = updatedRouteIndex
+        routeIndexF = updatedRouteIndexF
+
+        return guidance
+    }
+
+    private fun stopAtSignals(
+        desiredSpeed: Float,
+        curr: Lane, next: Lane?, canEnterNextLane: Boolean
+    ): Float {
+        var desiredSpeed = desiredSpeed
         // Stopping at lane end / signals - check if we can enter the next lane
         if (next != null && !canEnterNextLane) {
             val distToNext = (1f - routeIndexF) * curr.approxLength
@@ -323,9 +420,12 @@ class Vehicle {
         } else if (next == null && routeIndex == route.size - 1 && routeIndexF > 0.98) {
             desiredSpeed = 0f
         }
+        return desiredSpeed
+    }
 
-        // Vehicle following
-        val forward = rotation.transform(Vector3f(0.0, 0.0, 1.0))
+    private fun followOtherVehicles(desiredSpeed: Float): Float {
+        var desiredSpeed = desiredSpeed
+        val forward = rotation.transform(Vector3f(0f, 0f, 1f))
         val currentSpeed = velocity.length()
         for (other in nearby) {
             val toOther = other.position.sub(position, Vector3f())
@@ -368,12 +468,18 @@ class Vehicle {
                 )
             }
         }
-        targetV.set(guidance).mul(desiredSpeed)
+        return desiredSpeed
+    }
 
-        routeIndex = updatedRouteIndex
-        routeIndexF = updatedRouteIndexF
+    fun calculateTrailingPosition(link: VehicleLink): Vector3d {
+        // Direction engine is facing
+        val engineForward = link.engine.rotation.transform(Vector3f(0f, 0f, 1f))
+        val trailerForward = rotation.transform(Vector3f(0f, 0f, 1f))
 
-        return targetV
+        // Target position for trailer (behind engine)
+        return Vector3d(link.engine.position)
+            .fma(-link.linkToEngine, engineForward)
+            .fma(-link.linkToTrailer, trailerForward)
     }
 
     private fun adjustDesiredSpeed(

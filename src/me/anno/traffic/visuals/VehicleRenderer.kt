@@ -16,6 +16,7 @@ class VehicleRenderer(
 ) : MeshSpawner() {
 
     val crashedMat = Material.diffuse(0x333333)
+    val trailerMat = Material.diffuse(0xffff99)
 
     override fun forEachMesh(
         pipeline: Pipeline?,
@@ -30,7 +31,10 @@ class VehicleRenderer(
                 localPosition = vehicle.position
                 localRotation = vehicle.rotation
             }
-            val material = if (vehicle.isCrashed) crashedMat else null
+            val material =
+                if (vehicle.isTrailer) trailerMat
+                else if (vehicle.isCrashed) crashedMat
+                else null
             callback(mesh, material, transform)
         }
     }

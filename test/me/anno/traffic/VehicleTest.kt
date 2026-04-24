@@ -9,15 +9,21 @@ import kotlin.math.abs
 
 class VehicleTest {
 
+    companion object {
+        fun createStraight(length: Double = 100.0): Lane {
+            val q = Quaternionf()
+            val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), q, 0.0, 0.0)
+            val p1 = LanePoint(Vector3d(0.0, 0.0, length * 0.5), q, 0.0, 0.0)
+            val p2 = LanePoint(Vector3d(0.0, 0.0, length), q, 0.0, 0.0)
+            return Lane(p0, p1, p2)
+        }
+    }
+
     @Test
     fun testStraightLineFollowing() {
-        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
-        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
-        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
-        val lane = Lane(p0, p1, p2)
 
         val v1 = Vehicle()
-        v1.route.add(lane)
+        v1.route.add(createStraight())
         v1.position.set(0.0, 0.0, 0.0)
         v1.maxVelocity = 10f
 
