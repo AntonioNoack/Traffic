@@ -247,14 +247,9 @@ class Vehicle {
             // from both vehicles' updates.
             if (id > other.id || isLinkedTo(other)) continue
 
-            // The neighbor may not have updated its cached bounds yet when we are
-            // called from a single vehicle update, so refresh it from the current pose.
-            other.updateStrictBounds()
-
-            val overlap = isColliding(other)
+            val overlap = isColliding(other, 0f)
             if (overlap != null) {
-                val (mtvAxis, minOverlap, relCenter) = overlap
-                val pushDir = Vector3f(mtvAxis)
+                val (pushDir, minOverlap, relCenter) = overlap
                 if (relCenter.dot(pushDir) > 0) pushDir.negate()
 
                 val resolveAmount = minOverlap * 0.5f + 1e-3f
@@ -288,6 +283,9 @@ class Vehicle {
                 }
                 timeSinceCollision = 0f
                 other.timeSinceCollision = 0f
+
+                updateStrictBounds()
+                other.updateStrictBounds()
             }
         }
     }
@@ -305,38 +303,39 @@ class Vehicle {
         }
     }
 
-    private fun overlapsBounds(other: Vehicle): Boolean {
+    private fun overlapsBounds(other: Vehicle, padding: Float): Boolean {
         val min = boundsMin
         val max = boundsMax
         val otherMin = other.boundsMin
         val otherMax = other.boundsMax
-        return max.x >= otherMin.x && max.y >= otherMin.y && max.z >= otherMin.z &&
-                min.x <= otherMax.x && min.y <= otherMax.y && min.z <= otherMax.z
+        val di = 2f * padding
+        return max.x >= otherMin.x + di && max.y >= otherMin.y + di && max.z >= otherMin.z + di &&
+                min.x + di <= otherMax.x && min.y + di <= otherMax.y && min.z + di <= otherMax.z
     }
 
-    private fun isColliding(other: Vehicle): Collision? {
-        if (!overlapsBounds(other)) return null
+    private fun isColliding(other: Vehicle, padding: Float): Collision? {
+        if (!overlapsBounds(other, padding)) return null
 
-        val forwardA = rotation.transform(Vector3d(0.0, 0.0, 1.0))
-        val rightA = rotation.transform(Vector3d(1.0, 0.0, 0.0))
-        val hXA = localBounds.deltaX * 0.5
-        val hZA = localBounds.deltaZ * 0.5
+        val forwardA = rotation.transform(Vector3f(0.0, 0.0, 1.0))
+        val rightA = rotation.transform(Vector3f(1.0, 0.0, 0.0))
+        val hXA = localBounds.deltaX * 0.5f + padding
+        val hZA = localBounds.deltaZ * 0.5f + padding
         val centerA = Vector3d(position)
-            .fma(localBounds.centerX.toDouble(), rightA)
-            .fma(localBounds.centerZ.toDouble(), forwardA)
+            .fma(localBounds.centerX, rightA)
+            .fma(localBounds.centerZ, forwardA)
 
-        val forwardB = other.rotation.transform(Vector3d(0.0, 0.0, 1.0))
-        val rightB = other.rotation.transform(Vector3d(1.0, 0.0, 0.0))
-        val hXB = other.localBounds.deltaX * 0.5
-        val hZB = other.localBounds.deltaZ * 0.5
+        val forwardB = other.rotation.transform(Vector3f(0.0, 0.0, 1.0))
+        val rightB = other.rotation.transform(Vector3f(1.0, 0.0, 0.0))
+        val hXB = other.localBounds.deltaX * 0.5f + padding
+        val hZB = other.localBounds.deltaZ * 0.5f + padding
         val centerB = Vector3d(other.position)
-            .fma(other.localBounds.centerX.toDouble(), rightB)
-            .fma(other.localBounds.centerZ.toDouble(), forwardB)
+            .fma(other.localBounds.centerX, rightB)
+            .fma(other.localBounds.centerZ, forwardB)
 
         val relCenter = centerB.sub(centerA, Vector3f())
         val axes = arrayOf(rightA, forwardA, rightB, forwardB)
-        var minOverlap = Double.POSITIVE_INFINITY
-        var mtvAxis: Vector3d? = null
+        var minOverlap = Float.POSITIVE_INFINITY
+        var mtvAxis: Vector3f? = null
 
         var colliding = true
         for (axis in axes) {
@@ -397,19 +396,12 @@ class Vehicle {
         val updatedCurr = route[updatedRouteIndex]
 
         // Target look-ahead position for stable guidance
-        val dt = clamp((0.5f * velocity.length() + 3f) / curr.approxLength, 0.01f, 0.2f)
-        var lookAheadT = updatedRouteIndexF + dt
-        var targetSegment = updatedCurr
-        if (lookAheadT > 1f && updatedRouteIndex + 1 < route.size) {
-            lookAheadT -= 1f
-            targetSegment = route[updatedRouteIndex + 1]
-        }
-        val pTarget = targetSegment.getPosition(lookAheadT.toDouble(), 0.0, 0.0, Vector3d())
+        val pTarget = predictRoutePosition(this, 1f, minVelocity = 1f)
 
         // Guidance vector: points from current position to a point on lane center ahead
         val guidance = pTarget.sub(position, Vector3f())
         val guidanceLenSq = guidance.lengthSquared()
-        if (guidanceLenSq > 1e-8) {
+        if (guidanceLenSq > 1e-3f) {
             guidance.div(sqrt(guidanceLenSq))
         } else {
             guidance.set(0f, 0f, 1f)
@@ -476,15 +468,18 @@ class Vehicle {
             val dot = toOther.dot(forward)
             if (dot <= 0f) continue
 
+            // if our velocity moves us away from the other, skip
+            if (currentSpeed < 3f && toOther.length() + currentSpeed * 0.2f < toOther.distance(velocity)) continue
+
             // todo bug: long trains don't stop early enough in some cases :(, why??
             val otherSpeed = other.velocity.length()
             val relevantDistance = brakingDistance +
                     (localBounds.deltaZ + other.localBounds.deltaZ) * 0.5f + // one car length
-                    1.5f // safety distance when standing
+                    2.5f // safety distance when standing
+
             if (dot < relevantDistance) {
 
-                val safetyDistance = mix(0.2f, 1.2f, clamp(currentSpeed / 20f)) +
-                        relevantDistance * 0.1f
+                val safetyDistance = mix(0.2f, 1.2f, clamp(currentSpeed / 20f))
 
                 // half of each, plus safety
                 // "lerp" between deltaX and deltaZ depending on the relative vehicle angle, and position...
@@ -545,7 +540,7 @@ class Vehicle {
         desiredSpeed: Float
     ): Float {
         // IDM-like following
-        val safeGap = 2.5f + currentSpeed * 1f // 1.0s gap
+        val safeGap = 2.5f + currentSpeed * 2f // 2.5m + 2s gap
         return if (effectiveLateral < 2.5f && effectiveGap < safeGap) {
             val gapFactor = clamp(effectiveGap / safeGap)
             val speedLimit = max(0f, otherSpeed * gapFactor)
@@ -560,8 +555,9 @@ class Vehicle {
         return sqrt(x * x + y * y + z * z)
     }
 
-    private fun predictRoutePosition(vehicle: Vehicle, timeAhead: Float): Vector3d {
-        var remainingDistance = max(0f, vehicle.velocity.length() * timeAhead)
+    private fun predictRoutePosition(vehicle: Vehicle, timeAhead: Float, minVelocity: Float = 0f): Vector3d {
+        val velocity = max(vehicle.velocity.length(), minVelocity)
+        var remainingDistance = max(0f, velocity * timeAhead)
         var routeIndex = vehicle.routeIndex
         var routeT = clamp(vehicle.routeIndexF)
 
@@ -609,17 +605,21 @@ class Vehicle {
         treeBoundsMin.set(boundsMin).sub(3.0)
         treeBoundsMax.set(boundsMax).add(3.0)
 
-        val vl = velocity.length()
-        if (vl > 1e-3f) {
-            // 2x for smooth braking
-            val dt1 = 2f * estimateStoppingDistance(vl) / vl
-            val vx = velocity.x * dt1
-            val vy = velocity.y * dt1
-            val vz = velocity.z * dt1
-            if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
-            if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
-            if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
-        }
+        if (!isTrailer) {
+            val vl = velocity.length()
+            if (vl > 1e-3f) {
+                // 2x for smooth braking
+                val dt1 = 2f * estimateStoppingDistance(vl) / vl
+                val added = predictRoutePosition(this, dt1)
+
+                val vx = added.x - position.x
+                val vy = added.y - position.y
+                val vz = added.z - position.z
+                if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
+                if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
+                if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
+            }
+        }// trailer just follow
     }
 
     fun remove(): Boolean {
