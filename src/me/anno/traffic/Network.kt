@@ -30,7 +30,17 @@ class Network : System(), OnUpdate {
         }
 
     @DebugProperty
+    val drivenKilometers: Float
+        get() = drivenKilometersD.toFloat()
+
+    private var drivenKilometersD = 0.0
+
+    @DebugProperty
     val numVehicles get() = vehicles.size
+
+    @DebugProperty
+    @NotSerializedProperty
+    var numRemoved = 0
 
     @DebugProperty
     val numStreets get() = streets.size
@@ -40,10 +50,11 @@ class Network : System(), OnUpdate {
 
     private val pointTree = PointTree()
     val vehicleTree = VehicleTree()
-    private fun rebuildVehicleTree(dt: Float) {
+
+    private fun rebuildVehicleTree() {
         vehicleTree.clear()
         for (vehicle in vehicles) {
-            vehicle.updateTreeBounds(dt)
+            vehicle.updateTreeBounds()
             vehicleTree.add(vehicle)
         }
     }
@@ -92,10 +103,11 @@ class Network : System(), OnUpdate {
     }
 
     fun update(dt: Float) {
-        rebuildVehicleTree(dt)
+        rebuildVehicleTree()
         findCloseVehicles()
         updateVehicles(dt)
         deleteCrashedVehicles()
+        accumulateStatistics(dt)
     }
 
     fun updateVehicles(dt: Float) {
@@ -104,13 +116,26 @@ class Network : System(), OnUpdate {
         }
     }
 
+    fun accumulateStatistics(dt: Float) {
+        var delta = 0.0
+        for (vehicle in vehicles) {
+            delta += vehicle.velocity.length()
+        }
+        drivenKilometersD += delta * dt / 1e3
+    }
+
     fun deleteCrashedVehicles() {
         vehicles.removeIf { vehicle ->
             vehicle.isCrashed &&
                     vehicle.timeSinceCollision > 7f &&
                     vehicle.velocity.lengthSquared() < 1e-6 &&
-                    vehicle.remove()
+                    vehicle.remove() && onRemove()
         }
+    }
+
+    private fun onRemove(): Boolean {
+        numRemoved++
+        return true
     }
 
     fun addVehicle(vehicle: Vehicle) {

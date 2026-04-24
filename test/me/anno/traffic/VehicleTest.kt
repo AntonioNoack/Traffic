@@ -1,5 +1,10 @@
 package me.anno.traffic
 
+import me.anno.maths.Maths.TAUf
+import me.anno.traffic.utils.f2
+import me.anno.utils.assertions.assertGreaterThan
+import me.anno.utils.types.Floats.f2
+import me.anno.utils.types.Floats.toDegrees
 import org.joml.Quaternionf
 import org.joml.Vector3d
 import org.junit.jupiter.api.Assertions.*
@@ -277,7 +282,7 @@ class VehicleTest {
         assertTrue(v1.isCrashed)
         assertTrue(v2.isCrashed)
         assertNotEquals(0.0, v1.angularVelocity, "Collision should have induced spin")
-        
+
         val spinBefore = v1.angularVelocity
         // Re-run the exact same setup to verify determinism
         val v1b = Vehicle()
@@ -288,7 +293,7 @@ class VehicleTest {
         v2b.rotation.rotationY(PI.toFloat() * 0.5f)
         v1b.nearby.add(v2b)
         v2b.nearby.add(v1b)
-        
+
         v1b.update(dt)
         assertEquals(spinBefore, v1b.angularVelocity, "Physics should be deterministic")
     }
@@ -338,17 +343,73 @@ class VehicleTest {
         val v = Vehicle()
         // Give it some forward momentum then try to set backward target
         v.velocity.set(0.0, 0.0, 5.0)
-        
+
         // No route or target velocity means it wants to stop
         // Let's manually inject a backward push
         v.velocity.set(0.0, 0.0, -2.0)
 
         v.timeSinceCollision = 1f
-        
+
         val dt = 0.1f
         v.update(dt)
-        
+
         // vF < -0.1 should trigger stopping force
         assertTrue(v.velocity.z > -0.1, "Reversing should be prevented")
+    }
+
+    @Test
+    fun testVehicleDrivesAlongRoad() {
+        val street = createStraight()
+        val numAngles = 128
+        for (i in 0 until numAngles) {
+            val angle = i * TAUf / numAngles
+            val v = Vehicle()
+            v.rotation.rotationY(angle)
+            v.route.add(street)
+            val dt = 0.1f
+            val debug = i == 19
+            var numSteps = 0
+            while (numSteps++ < 200) {
+                v.update(dt)
+
+                if (debug && numSteps % 10 == 0) {
+                    val angle = v.rotation.getEulerAngleYXZvY()
+                    println("\nvehicle stats:")
+                    println("  pos: ${v.position.f2()}m += ${v.velocity.f2()}m/s (= ${v.velocity.length().f2()} m/s)")
+                    println("  rot: ${angle.toDegrees().f2()}° += ${v.angularVelocity.toDegrees().f2()}°/s")
+                }
+
+                if (v.routeIndexF > 0.5f) break
+            }
+
+            if (debug) println()
+            println("p[$i->${angle.toDegrees()}°] ${v.routeIndexF.f2()} @$numSteps")
+            assertGreaterThan(v.routeIndexF, 0.2f)
+        }
+    }
+
+    @Test
+    fun testStoppingDistanceEqualsExpectations() {
+        val street = createStraight(1e4)
+        for (speed in listOf(20f, 50f, 100f, 500f)) {
+            val v = Vehicle()
+            v.route.add(street)
+
+            v.velocity.set(0f, 0f, speed / 3.6f)
+            val expected = v.estimateStoppingDistance(v.velocity.length())
+
+            // stop the car
+            street.maxSpeed = 0f
+            v.maxVelocity = 0f
+
+            val dt = 0.1f
+            while (v.velocity.lengthSquared() > 1e-6f) {
+                v.update(dt)
+            }
+
+            println("expected: $expected")
+            println("actual: ${v.position.f2()}m @${v.velocity.f2()}")
+            assertEquals(expected, v.position.z.toFloat(), expected * 0.2f)
+        }
     }
 }

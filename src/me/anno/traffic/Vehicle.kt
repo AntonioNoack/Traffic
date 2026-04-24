@@ -1,5 +1,6 @@
 package me.anno.traffic
 
+import me.anno.maths.Maths.absClamp
 import me.anno.maths.Maths.clamp
 import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.sq
@@ -15,7 +16,6 @@ class Vehicle {
 
     companion object {
         private val nextId = AtomicInteger(0)
-        private val predictionTimes = floatArrayOf(0f, 0.5f, 1.0f, 1.5f)
     }
 
     val id = nextId.incrementAndGet()
@@ -143,11 +143,6 @@ class Vehicle {
     var maxAcceleration = 0.3f * 9.81f
     var maxDeceleration = 1.0f * 9.81f
 
-    /**
-     * tire grip
-     * */
-    var maxLateralAcceleration = 1.0f * 9.81f
-
     private fun applyRollingVelocity(
         targetVelocity: Vector3f,
         right: Vector3f, forward: Vector3f,
@@ -155,15 +150,19 @@ class Vehicle {
     ) {
         // todo implement gears and shifting time
         // 1. Longitudinal control
-        val targetVF = max(0f, targetVelocity.dot(forward))
-        val speedErr = targetVF - vF
-        val accelF = clamp(speedErr / dt, -maxDeceleration, maxAcceleration)
-        velocity.fma(accelF * dt, forward)
+        val targetDir = if (targetVelocity.lengthSquared() > 1e-6f)
+            Vector3f(targetVelocity).normalize()
+        else forward
+
+        val speedErr = targetVelocity.length() - velocity.dot(targetDir)
+        val accel = clamp(speedErr / dt, -maxDeceleration, maxAcceleration)
+
+        velocity.fma(accel * dt, targetDir)
 
         // 2. Lateral resistance (Tires gripping)
-        val lateralFrictionAccel = -vR / dt
-        val limitedLateralAccel = clamp(lateralFrictionAccel, -maxLateralAcceleration, maxLateralAcceleration)
-        velocity.fma(limitedLateralAccel * dt, right)
+        val lateralFriction = 8f // tune 5–15
+        val lateralAccel = -vR * lateralFriction
+        velocity.fma(lateralAccel * dt, right)
     }
 
     private fun applySteering(
@@ -174,22 +173,22 @@ class Vehicle {
         // 3. Steering and Rotation
         val currentSpeed = velocity.length()
         var targetHeading = atan2(forward.x, forward.z)
-        if (currentSpeed > 0.1f) {
-            val targetLenSq = targetVelocity.lengthSquared()
-            if (targetLenSq > 1e-6f) {
-                val targetDirX = targetVelocity.x
-                val targetDirZ = targetVelocity.z
-                targetHeading = atan2(targetDirX, targetDirZ)
 
-                val localTargetX = targetDirX * right.x + targetDirZ * right.z
-                val localTargetZ = targetDirX * forward.x + targetDirZ * forward.z
+        val targetLenSq = targetVelocity.lengthSquared()
+        if (targetLenSq > 1e-6f) {
+            val targetDirX = targetVelocity.x
+            val targetDirZ = targetVelocity.z
+            targetHeading = atan2(targetDirX, targetDirZ)
 
-                val desiredSteeringAngle = atan2(localTargetX, localTargetZ)
-                val steeringSpeed = 2f
-                val targetSteering = clamp(desiredSteeringAngle, -0.6f, 0.6f)
-                val steeringErr = targetSteering - steeringAngle
-                steeringAngle += clamp(steeringErr, -steeringSpeed * dt, steeringSpeed * dt)
-            }
+            val localTargetX = targetDirX * right.x + targetDirZ * right.z
+            val localTargetZ = targetDirX * forward.x + targetDirZ * forward.z
+
+            val desiredSteeringAngle = atan2(localTargetX, localTargetZ)
+            val steeringSpeed = 2f
+            val targetSteering = clamp(desiredSteeringAngle, -0.6f, 0.6f)
+            val steeringErr = targetSteering - steeringAngle
+            steeringAngle += clamp(steeringErr, -steeringSpeed * dt, steeringSpeed * dt)
+
         } else {
             // undo steering
             steeringAngle *= exp(-dt * 5f)
@@ -398,7 +397,7 @@ class Vehicle {
         val updatedCurr = route[updatedRouteIndex]
 
         // Target look-ahead position for stable guidance
-        val dt = clamp(0.5f * velocity.length() / curr.approxLength, 0.01f, 0.2f)
+        val dt = clamp((0.5f * velocity.length() + 3f) / curr.approxLength, 0.01f, 0.2f)
         var lookAheadT = updatedRouteIndexF + dt
         var targetSegment = updatedCurr
         if (lookAheadT > 1f && updatedRouteIndex + 1 < route.size) {
@@ -450,18 +449,42 @@ class Vehicle {
         return desiredSpeed
     }
 
+    fun estimateStoppingDistance(speed: Float): Float {
+        /*
+        val stoppingTime = speed / acceleration // a = v*t
+        return 0.5f * acceleration * sq(stoppingTime) // s = a/2 * t²
+        */
+        val acceleration = maxDeceleration
+        return 0.5f * sq(speed) / acceleration
+    }
+
+    fun estimateStoppingTime(speed: Float): Float {
+        val acceleration = maxDeceleration
+        return speed / acceleration // a = v*t
+    }
+
     private fun followOtherVehicles(desiredSpeed: Float): Float {
         var desiredSpeed = desiredSpeed
         val forward = rotation.transform(Vector3f(0f, 0f, 1f))
         val currentSpeed = velocity.length()
+
+        val brakingDistance = 2f * estimateStoppingDistance(currentSpeed) // 2x for soft braking
+        val brakingTime = estimateStoppingTime(currentSpeed)
+
         for (other in nearby) {
             val toOther = other.position.sub(position, Vector3f())
             val dot = toOther.dot(forward)
-            val otherSpeed = other.velocity.length()
-            val relevantDistance = 3f * max(currentSpeed, otherSpeed) + localBounds.deltaZ + other.localBounds.deltaZ
-            if (dot > 0f && dot < relevantDistance) {
+            if (dot <= 0f) continue
 
-                val safetyDistance = mix(0.2f, 1.2f, clamp(currentSpeed / 20f))
+            // todo bug: long trains don't stop early enough in some cases :(, why??
+            val otherSpeed = other.velocity.length()
+            val relevantDistance = brakingDistance +
+                    (localBounds.deltaZ + other.localBounds.deltaZ) * 0.5f + // one car length
+                    1.5f // safety distance when standing
+            if (dot < relevantDistance) {
+
+                val safetyDistance = mix(0.2f, 1.2f, clamp(currentSpeed / 20f)) +
+                        relevantDistance * 0.1f
 
                 // half of each, plus safety
                 // "lerp" between deltaX and deltaZ depending on the relative vehicle angle, and position...
@@ -480,7 +503,11 @@ class Vehicle {
                 // Drivers can see the intended path, so route geometry is the better signal.
                 var effectiveGap = gap
                 var effectiveLateral = lateralDist
-                for (predictionTime in predictionTimes) {
+
+                var predictionTime = 0f
+                while (predictionTime < brakingTime) {
+                    predictionTime += 0.25f
+
                     val predictedToOther = predictRoutePosition(other, predictionTime).sub(position, Vector3f())
                     val predictedDot = predictedToOther.dot(forward)
                     val predictedLateralDist = predictedToOther.fmaDistance(predictedDot, forward)
@@ -554,6 +581,7 @@ class Vehicle {
     }
 
     private fun applyVelocity(dt: Float) {
+        angularVelocity = absClamp(angularVelocity, 100f)
         rotation.rotateY(angularVelocity * dt)
         rotation.normalize()
         check(rotation.isFinite) { "Invalid rotation by $angularVelocity * $dt" }
@@ -577,18 +605,21 @@ class Vehicle {
         boundsMax.add(position)
     }
 
-    fun updateTreeBounds(dt: Float) {
+    fun updateTreeBounds() {
         treeBoundsMin.set(boundsMin).sub(3.0)
         treeBoundsMax.set(boundsMax).add(3.0)
 
-        // apply 2s forward-looking window
-        val dt1 = max(2f, dt)
-        val vx = velocity.x * dt1
-        val vy = velocity.y * dt1
-        val vz = velocity.z * dt1
-        if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
-        if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
-        if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
+        val vl = velocity.length()
+        if (vl > 1e-3f) {
+            // 2x for smooth braking
+            val dt1 = 2f * estimateStoppingDistance(vl) / vl
+            val vx = velocity.x * dt1
+            val vy = velocity.y * dt1
+            val vz = velocity.z * dt1
+            if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
+            if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
+            if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
+        }
     }
 
     fun remove(): Boolean {
