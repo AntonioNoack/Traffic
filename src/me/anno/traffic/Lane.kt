@@ -24,9 +24,9 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         (chord + net).toFloat() * 0.5f
     }
 
-    fun mayEnterNextLane(nextLane: Lane): Boolean {
+    fun mayEnterNextLane(nextLane: Lane?): Boolean {
         val curr = crossingSection
-        val next = nextLane.crossingSection
+        val next = nextLane?.crossingSection
         if (curr == null || next == null) return true
         if (curr.crossing != next.crossing) return true
         return curr.crossing.mayDrive(curr.sectionId, next.sectionId)

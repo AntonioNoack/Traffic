@@ -3,6 +3,7 @@ package me.anno.traffic
 import me.anno.maths.Maths.clamp
 import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.sq
+import me.anno.traffic.utils.addUnique
 import org.joml.AABBf
 import org.joml.Quaternionf
 import org.joml.Vector3d
@@ -359,13 +360,48 @@ class Vehicle {
         } else null
     }
 
+    private var currCrossing: Crossing? = null
+    private fun setCrossing(cs: CrossingSection?) {
+        val prev = currCrossing
+        if (cs == null && prev == null) return
+
+        if (prev != null && prev.id == 0 && prev.onRoute.remove(this)) {
+            println("Removing $id from intersection, #${prev.onRoute.size}")
+        }
+
+        // todo when a vehicle is crashed, we must remove it there, too
+        prev?.onRoute?.remove(this)
+        currCrossing = if (cs != null) {
+            val crossing = cs.crossing
+            if (crossing.onRoute.addUnique(this)) {
+                if (crossing.id == 0) {
+                    println("Adding $id to intersection, #${crossing.onRoute.size}, ${crossing.onRouteSegment} vs ${cs.sectionId}")
+                }
+            }
+            crossing.onRouteSegment = cs.sectionId
+            crossing
+        } else null
+    }
+
     private fun computeTargetVelocity(): Vector3f {
         val curr = route.getOrNull(routeIndex) ?: return Vector3f()
 
         val nextT = curr.getClosestT(position, routeIndexF)
         val didAdvance = nextT > 1f && routeIndex + 1 < route.size
         val next = route.getOrNull(routeIndex + 1)
-        val canEnterNextLane = next == null || isTrailer || curr.mayEnterNextLane(next)
+        val canEnterNextLane = curr.mayEnterNextLane(next)
+
+        val cs = curr.crossingSection
+        if (didAdvance && canEnterNextLane &&
+            cs != null && cs.mayStopOnSection() &&
+            curr.mayEnterNextLane(next)
+        ) {
+            setCrossing(cs)
+        } else if (nextT > 0.9f) {
+            // far enough on segment -> clear our claim
+            setCrossing(null)
+        }
+
         val updatedRouteIndex = if (didAdvance && canEnterNextLane) routeIndex + 1 else routeIndex
         val updatedRouteIndexF = if (didAdvance && canEnterNextLane) nextT - 1f else min(nextT, 1f)
         val updatedCurr = route[updatedRouteIndex]
@@ -430,7 +466,9 @@ class Vehicle {
         for (other in nearby) {
             val toOther = other.position.sub(position, Vector3f())
             val dot = toOther.dot(forward)
-            if (dot > 0f && dot < 35f) {
+            val otherSpeed = other.velocity.length()
+            val relevantDistance = 3f * max(currentSpeed, otherSpeed) + localBounds.deltaZ + other.localBounds.deltaZ
+            if (dot > 0f && dot < relevantDistance) {
 
                 val safetyDistance = mix(0.2f, 1.2f, clamp(currentSpeed / 20f))
 
@@ -441,7 +479,6 @@ class Vehicle {
                 val pseudoCarDiameter = (localBounds.deltaZ + other.localBounds.deltaZ) * 0.5f + safetyDistance
                 val lateralDist = toOther.fmaDistance(dot, forward)
                 val gap = dot - pseudoCarDiameter
-                val otherSpeed = other.velocity.length()
 
                 // todo only apply this, if the car has waited some time,
                 //  and we're not just stopped for a traffic light...
@@ -561,5 +598,11 @@ class Vehicle {
         if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
         if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
         if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
+    }
+
+    fun remove(): Boolean {
+        markAsCrashed()
+        setCrossing(null)
+        return true
     }
 }

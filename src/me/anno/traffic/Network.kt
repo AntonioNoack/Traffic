@@ -6,6 +6,7 @@ import me.anno.ecs.annotations.DebugProperty
 import me.anno.ecs.systems.OnUpdate
 import me.anno.engine.debug.DebugAABB
 import me.anno.engine.debug.DebugShapes
+import me.anno.engine.serialization.NotSerializedProperty
 import me.anno.graph.octtree.KdTreePairs.queryPairs
 import me.anno.maths.Maths.sq
 import me.anno.traffic.utils.PointTree
@@ -21,6 +22,12 @@ class Network : System(), OnUpdate {
     val lanes = ArrayList<Lane>()
     val streets = ArrayList<Street>()
     val points = HashSet<LanePoint>()
+
+    var timeMultiplier: Double
+        get() = Time.timeSpeed
+        set(value) {
+            Time.timeSpeed = value
+        }
 
     @DebugProperty
     val numVehicles get() = vehicles.size
@@ -101,7 +108,8 @@ class Network : System(), OnUpdate {
         vehicles.removeIf { vehicle ->
             vehicle.isCrashed &&
                     vehicle.timeSinceCollision > 7f &&
-                    vehicle.velocity.lengthSquared() < 1e-6
+                    vehicle.velocity.lengthSquared() < 1e-6 &&
+                    vehicle.remove()
         }
     }
 
@@ -113,6 +121,7 @@ class Network : System(), OnUpdate {
     fun removeVehicle(vehicle: Vehicle) {
         vehicles.remove(vehicle)
         vehicleTree.remove(vehicle)
+        vehicle.remove()
     }
 
     fun addStreet(street: Street) {
