@@ -365,19 +365,10 @@ class Vehicle {
         val prev = currCrossing
         if (cs == null && prev == null) return
 
-        if (prev != null && prev.id == 0 && prev.onRoute.remove(this)) {
-            println("Removing $id from intersection, #${prev.onRoute.size}")
-        }
-
-        // todo when a vehicle is crashed, we must remove it there, too
         prev?.onRoute?.remove(this)
         currCrossing = if (cs != null) {
             val crossing = cs.crossing
-            if (crossing.onRoute.addUnique(this)) {
-                if (crossing.id == 0) {
-                    println("Adding $id to intersection, #${crossing.onRoute.size}, ${crossing.onRouteSegment} vs ${cs.sectionId}")
-                }
-            }
+            crossing.onRoute.addUnique(this)
             crossing.onRouteSegment = cs.sectionId
             crossing
         } else null
