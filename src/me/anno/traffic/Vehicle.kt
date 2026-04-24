@@ -24,8 +24,7 @@ class Vehicle {
     var routeIndex = 0
     var routeIndexF = 0f
 
-    var prevSegment: Vehicle? = null
-    var prevDistance = 5.0
+    var linkToEngine: VehicleLink? = null
 
     val localBounds = AABBf()
         .setMin(-0.93f, 0.0f, -2.0f)

@@ -1,5 +1,6 @@
 package me.anno.traffic
 
+import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.pow
 import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
@@ -77,20 +78,20 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         val p2 = to.position
 
         val d1 = Vector3d(
-            2.0 * (1 - t) * (p1.x - p0.x) + 2.0 * t * (p2.x - p1.x),
-            2.0 * (1 - t) * (p1.y - p0.y) + 2.0 * t * (p2.y - p1.y),
-            2.0 * (1 - t) * (p1.z - p0.z) + 2.0 * t * (p2.z - p1.z)
+            mix(p1.x - p0.x, p2.x - p1.x, t),
+            mix(p1.y - p0.y, p2.y - p1.y, t),
+            mix(p1.z - p0.z, p2.z - p1.z, t)
         )
 
         val d2 = Vector3d(
-            2.0 * (p2.x - 2 * p1.x + p0.x),
-            2.0 * (p2.y - 2 * p1.y + p0.y),
-            2.0 * (p2.z - 2 * p1.z + p0.z)
+            (p2.x - 2 * p1.x + p0.x),
+            (p2.y - 2 * p1.y + p0.y),
+            (p2.z - 2 * p1.z + p0.z)
         )
 
         val cross = d1.cross(d2, Vector3d())
-        val num = cross.length()
-        val denom = pow(d1.length(), 3.0)
+        val num = cross.length() * 4.0
+        val denom = pow(d1.length() * 2.0, 3.0)
         if (denom < 1e-6) return Double.POSITIVE_INFINITY
 
         val kappa = num / denom
