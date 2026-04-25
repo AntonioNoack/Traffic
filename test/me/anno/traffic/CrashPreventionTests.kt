@@ -37,11 +37,12 @@ class CrashPreventionTests {
             va.nearby.add(vb)
             vb.nearby.add(va)
 
+            val vehicles = listOf(va, vb)
+
             val dt = 0.1f
             var j = 0
             while (++j < 200) {
-                va.update(dt)
-                vb.update(dt)
+                vehicles.update(dt)
 
                 check(!va.isCrashed)
                 check(!vb.isCrashed)
@@ -102,9 +103,7 @@ class CrashPreventionTests {
             //  it's only ~50m + numVehicles * ~3m or so after all,
             //  but we want to confirm they are stable, too
 
-            for (i in vehicles.indices) {
-                randomUpdateOrder[i].update(dt)
-            }
+            randomUpdateOrder.update(dt)
 
             if (k % 10 == 0 || k == 463) {
                 val distances = List(vehicles.size - 1) {

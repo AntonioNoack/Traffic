@@ -82,9 +82,9 @@ class RightTurnPredictionTest {
 
         val dt = 0.05f
         var minSpeedBeforeTurnCompleted = Float.POSITIVE_INFINITY
+        val vehicles = listOf(vehicle) + blockers
         for (i in 0 until 400) {
-            vehicle.update(dt)
-            blockers.forEach { it.update(dt) }
+            vehicles.update(dt)
             if (vehicle.routeIndex < 2 || vehicle.position.x <= 20.0) {
                 minSpeedBeforeTurnCompleted = minOf(minSpeedBeforeTurnCompleted, vehicle.velocity.length())
             }
@@ -129,9 +129,14 @@ class RightTurnPredictionTest {
             .sub(lanePoints[2].position)
             .normalize()
             .mul(10.0)
-        val centerPoint = Vector3d(lanePoints[1].position).add(entryDir).mix(Vector3d(lanePoints[2].position).add(exitDir), 0.5)
+        val centerPoint =
+            Vector3d(lanePoints[1].position).add(entryDir).mix(Vector3d(lanePoints[2].position).add(exitDir), 0.5)
         val angle = (lanePoints[1].angle + lanePoints[2].angle) * 0.5
-        val turnLane = Lane(lanePoints[1], LanePoint(centerPoint, Quaternionf().rotationY(angle.toFloat()), angle, 2.0), lanePoints[2])
+        val turnLane = Lane(
+            lanePoints[1],
+            LanePoint(centerPoint, Quaternionf().rotationY(angle.toFloat()), angle, 2.0),
+            lanePoints[2]
+        )
         val blockerLane = Lane(
             lanePoint(0.0, 100.0, -PI * 0.5),
             lanePoint(0.0, 50.0, -PI * 0.5),
@@ -174,9 +179,9 @@ class RightTurnPredictionTest {
 
         val dt = 0.05f
         var minSpeedBeforeTurnCompleted = Float.POSITIVE_INFINITY
+        val vehicles = listOf(turnVehicle) + blockers
         for (i in 0 until 400) {
-            turnVehicle.update(dt)
-            blockers.forEach { it.update(dt) }
+            vehicles.update(dt)
             if (turnVehicle.routeIndex < 2 || turnVehicle.position.x <= 20.0) {
                 minSpeedBeforeTurnCompleted = minOf(minSpeedBeforeTurnCompleted, turnVehicle.velocity.length())
             }

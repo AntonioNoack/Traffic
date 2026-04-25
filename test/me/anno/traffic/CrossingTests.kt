@@ -98,7 +98,7 @@ class CrossingTests {
         val initialSpeed = vehicle.velocity.length()
         assertTrue(initialSpeed < 0.1, "Vehicle should start stopped")
 
-        vehicle.update(0.1f)
+        vehicle.updateS(0.1f)
         val afterUpdate = vehicle.velocity.length()
 
         // Should not have accelerated because N->S is NOT allowed (allowedSection = 1)
@@ -126,7 +126,7 @@ class CrossingTests {
         vehicle.maxVelocity = 13f
         vehicle.velocity.set(0.0, 0.0, 5.0)
 
-        vehicle.update(0.1f)
+        vehicle.updateS(0.1f)
 
         assertTrue(vehicle.velocity.z > 0, "Vehicle should proceed when light is green")
     }
@@ -157,7 +157,7 @@ class CrossingTests {
         var turnedGreen = false
 
         for (i in 0 until 260) {
-            vehicle.update(dt)
+            vehicle.updateS(dt)
 
             if (!turnedGreen && vehicle.routeIndex < 1 && vehicle.position.z > -19.0 && vehicle.velocity.length() < 0.5f) {
                 stoppedBeforeCrossing = true
@@ -179,7 +179,10 @@ class CrossingTests {
         }
 
         assertTrue(stoppedBeforeCrossing, "Vehicle should stop at the crossing line before the light turns green")
-        assertTrue(greenStartSpeed < 0.5f, "Vehicle should still be waiting at green switch, speed=$greenStartSpeed pos=$greenStartPosition")
+        assertTrue(
+            greenStartSpeed < 0.5f,
+            "Vehicle should still be waiting at green switch, speed=$greenStartSpeed pos=$greenStartPosition"
+        )
         assertTrue(vehicle.position.z > 0.0, "Vehicle should enter the crossing after the light turns green")
         assertFalse(vehicle.isCrashed)
     }
@@ -219,7 +222,7 @@ class CrossingTests {
 
         val dt = 0.05f
         for (i in 0 until 160) {
-            vehicles.forEach { it.update(dt) }
+            vehicles.update(dt)
             if (i % 20 == 0) {
                 println(
                     "redStep=$i " +
@@ -235,13 +238,22 @@ class CrossingTests {
         val third = vehicles[2]
 
         assertFalse(front.isCrashed || second.isCrashed || third.isCrashed)
-        assertTrue(front.position.z > -19.5, "Front vehicle should stop close to the crossing line, z=${front.position.z}")
-        assertTrue((front.position.z - second.position.z) < 16.0, "Second vehicle should stay in the queue behind the front vehicle")
-        assertTrue((second.position.z - third.position.z) < 16.0, "Third vehicle should stay in the queue behind the second vehicle")
+        assertTrue(
+            front.position.z > -19.5,
+            "Front vehicle should stop close to the crossing line, z=${front.position.z}"
+        )
+        assertTrue(
+            (front.position.z - second.position.z) < 16.0,
+            "Second vehicle should stay in the queue behind the front vehicle"
+        )
+        assertTrue(
+            (second.position.z - third.position.z) < 16.0,
+            "Third vehicle should stay in the queue behind the second vehicle"
+        )
 
         crossing.allowedSection = 0
         for (i in 0 until 120) {
-            vehicles.forEach { it.update(dt) }
+            vehicles.update(dt)
             if (i % 20 == 0) {
                 println(
                     "greenStep=$i " +
@@ -273,7 +285,8 @@ class CrossingTests {
             val entry1 = createLanePoint(0.0, -radius, PI * 0.5)
             val exit0 = createLanePoint(0.0, radius, PI * 0.5)
             val exit1 = createLanePoint(0.0, routeLength, PI * 0.5)
-            val entryLane = createLane(entry0, createLanePoint(0.0, -radius * 0.5 - routeLength * 0.25, PI * 0.5), entry1)
+            val entryLane =
+                createLane(entry0, createLanePoint(0.0, -radius * 0.5 - routeLength * 0.25, PI * 0.5), entry1)
             val exitLane = createLane(exit0, createLanePoint(0.0, radius * 0.5 + routeLength * 0.25, PI * 0.5), exit1)
 
             val csEntry = CrossingSection(crossing, 0)
@@ -307,7 +320,7 @@ class CrossingTests {
 
             val dt = 0.05f
             for (i in 0 until 220) {
-                vehicles.forEach { it.update(dt) }
+                vehicles.update(dt)
                 if (i % 40 == 0) {
                     println(
                         "scaleStep r=$radius pad=$roadPadding i=$i " +
@@ -323,10 +336,22 @@ class CrossingTests {
             val third = vehicles[2]
 
             assertFalse(front.isCrashed || second.isCrashed || third.isCrashed)
-            assertTrue(front.position.z > -(radius + 6.0), "Front vehicle should stop close to the line for radius=$radius, z=${front.position.z}")
-            assertTrue(front.position.z < -radius + 3.0, "Front vehicle should not enter the crossing on red for radius=$radius, z=${front.position.z}")
-            assertTrue((front.position.z - second.position.z) < 20.0, "Second vehicle should queue behind the front vehicle for radius=$radius")
-            assertTrue((second.position.z - third.position.z) < 20.0, "Third vehicle should queue behind the second vehicle for radius=$radius")
+            assertTrue(
+                front.position.z > -(radius + 6.0),
+                "Front vehicle should stop close to the line for radius=$radius, z=${front.position.z}"
+            )
+            assertTrue(
+                front.position.z < -radius + 3.0,
+                "Front vehicle should not enter the crossing on red for radius=$radius, z=${front.position.z}"
+            )
+            assertTrue(
+                (front.position.z - second.position.z) < 20.0,
+                "Second vehicle should queue behind the front vehicle for radius=$radius"
+            )
+            assertTrue(
+                (second.position.z - third.position.z) < 20.0,
+                "Third vehicle should queue behind the second vehicle for radius=$radius"
+            )
         }
     }
 
@@ -351,14 +376,16 @@ class CrossingTests {
         vehicle.maxVelocity = 13f
         vehicle.velocity.set(0.0, 0.0, 10.0)
 
-        vehicle.update(0.1f)
+        vehicle.updateS(0.1f)
 
         // Forward direction should still be +Z (going north to south)
         val forward = vehicle.rotation.transform(Vector3d(0.0, 0.0, 1.0))
 
         // Should not have turned sideways (90 degrees would be X axis)
-        assertTrue(abs(forward.z) > abs(forward.x),
-            "Vehicle should not turn sideways, forward.z=${forward.z}, forward.x=${forward.x}")
+        assertTrue(
+            abs(forward.z) > abs(forward.x),
+            "Vehicle should not turn sideways, forward.z=${forward.z}, forward.x=${forward.x}"
+        )
     }
 
     @Test
@@ -426,15 +453,17 @@ class CrossingTests {
 
         val dt = 0.05f
         for (i in 0 until 400) {
-            vehicle.update(dt)
+            vehicle.updateS(dt)
         }
 
         val forward = vehicle.rotation.transform(Vector3d(0.0, 0.0, 1.0))
         assertFalse(vehicle.isCrashed)
         assertTrue(vehicle.routeIndex >= 2, "Vehicle should have reached the exit lane")
         assertTrue(vehicle.position.x > 20.0, "Vehicle should have crossed the intersection")
-        assertTrue(abs(forward.x) > abs(forward.z),
-            "Vehicle should be heading east after the turn, forward=$forward")
+        assertTrue(
+            abs(forward.x) > abs(forward.z),
+            "Vehicle should be heading east after the turn, forward=$forward"
+        )
     }
 
     @Test
@@ -470,9 +499,9 @@ class CrossingTests {
         westVehicle.nearby.add(northVehicle)
 
         val dt = 0.05f
+        val vehicles = listOf(northVehicle, westVehicle)
         for (i in 0 until 250) {
-            northVehicle.update(dt)
-            westVehicle.update(dt)
+            vehicles.update(dt)
         }
 
         assertFalse(
@@ -554,9 +583,9 @@ class CrossingTests {
 
         val dt = 0.05f
         var minSpeedBeforeTurnCompleted = Float.POSITIVE_INFINITY
+        val vehicles = listOf(turnVehicle) + blockers
         for (i in 0 until 400) {
-            turnVehicle.update(dt)
-            blockers.forEach { it.update(dt) }
+            vehicles.update(dt)
             if (turnVehicle.routeIndex < 2 || turnVehicle.position.x <= 20.0) {
                 minSpeedBeforeTurnCompleted = minOf(minSpeedBeforeTurnCompleted, turnVehicle.velocity.length())
             }

@@ -1,10 +1,13 @@
 package me.anno.traffic
 
+import me.anno.maths.Maths.PIf
+import me.anno.maths.Maths.TAUf
 import me.anno.maths.Maths.absClamp
 import me.anno.maths.Maths.clamp
 import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.sq
 import me.anno.traffic.utils.addUnique
+import me.anno.utils.pooling.JomlPools
 import org.joml.AABBf
 import org.joml.Quaternionf
 import org.joml.Vector3d
@@ -44,11 +47,11 @@ class Vehicle {
     val forward = Vector3f(0f, 0f, 1f)
     val right = Vector3f(1f, 0f, 0f)
 
-    val boundsMin = Vector3d()
-    val boundsMax = Vector3d()
+    val collisionBoundsMin = Vector3d()
+    val collisionBoundsMax = Vector3d()
 
-    val treeBoundsMin = Vector3d()
-    val treeBoundsMax = Vector3d()
+    val nearbyBoundsMin = Vector3d()
+    val nearbyBoundsMax = Vector3d()
 
     var maxVelocity = 50f / 3.6f // 50km/h
 
@@ -56,16 +59,18 @@ class Vehicle {
 
     var timeSinceCollision = -1f
 
-    fun update(dt: Float) {
-        if (!(dt > 0f)) return
-
-        val link = linkToEngine
+    fun update0(dt: Float) {
         if (isCrashed) {
             applyDrivingAfterCrash(dt)
-        } else if (link != null) {
-            applyTrailerFollowing(link, dt)
-        } else {
+        } else if (linkToEngine == null) {
             applyMindfulDriving(dt)
+        }
+    }
+
+    fun update1(dt: Float) {
+        val link = linkToEngine
+        if (link != null && !isCrashed) {
+            applyTrailerFollowing(link, dt)
         }
 
         applyVelocity(dt)
@@ -73,7 +78,9 @@ class Vehicle {
         // Refresh bounds before collision tests so the SAT uses the current frame's pose,
         // not the previous frame's cached AABB.
         updateStrictBounds()
+    }
 
+    fun update2() {
         // Resolve collisions after motion, so frame-to-frame overlap is caught immediately
         // instead of only after one vehicle has already passed through the other.
         resolveCollisions()
@@ -106,20 +113,25 @@ class Vehicle {
     }
 
     private fun applyTrailerFollowing(link: VehicleLink, dt: Float) {
-
         if (link.engine.isCrashed) {
             markAsCrashed()
             timeSinceCollision = link.engine.timeSinceCollision
             return
         }
 
+        applyTrailerPosition(link, dt)
+        applyTrailerSteering(dt)
+    }
+
+    private fun applyTrailerPosition(link: VehicleLink, dt: Float) {
         val desiredPos = calculateTrailingPosition(link)
         val toTarget = desiredPos.sub(position, Vector3f())
 
         val scale = 1f / dt // catch up this very frame :3
         toTarget.mul(scale, velocity)
+    }
 
-        // Steering
+    private fun applyTrailerSteering(dt: Float) {
         val damping = 6f
         val velocity = velocity
         if (velocity.lengthSquared() > 1e-3f) {
@@ -169,7 +181,7 @@ class Vehicle {
     ) {
         // 3. Steering and Rotation
         val currentSpeed = velocity.length()
-        var targetHeading = atan2(forward.x, forward.z)
+        var targetHeading = forward.angleY()
 
         val targetLenSq = targetVelocity.lengthSquared()
         if (targetLenSq > 1e-6f) {
@@ -201,15 +213,20 @@ class Vehicle {
         currentSpeed: Float,
     ): Float {
         val wheelbase = 2.5f
-        val currentHeading = atan2(forward.x, forward.z)
-        val headingError = atan2(
-            sin(targetHeading - currentHeading),
-            cos(targetHeading - currentHeading)
-        )
+        val currentHeading = forward.angleY()
+        val headingError = fastAngleDiff(targetHeading - currentHeading)
         val slipCorrection = if (abs(vR) > abs(vF) * 0.5) headingError * 12f else 0f
         // Use actual speed here so a vehicle can recover from a sideways start
         // and still rotate toward the lane direction while moving.
         return if (currentSpeed > 0.05) (currentSpeed / wheelbase) * tan(steeringAngle) + slipCorrection else 0f
+    }
+
+    private fun fastAngleDiff(angleDiff: Float): Float {
+        var angle = angleDiff
+        if (angle < -PIf) angle += TAUf
+        else if (angle > PIf) angle -= TAUf
+        check(abs(angle) <= 3.15f)
+        return angle
     }
 
     private fun updateAngularVelocity(targetOmega: Float, dt: Float) {
@@ -240,8 +257,7 @@ class Vehicle {
 
     private fun resolveCollisions() {
         for (other in nearby) {
-            // Resolve each pair only once per frame; this method may be called
-            // from both vehicles' updates.
+            // Resolve each pair only once per frame; this method may be called from both vehicles' updates.
             if (id > other.id || isLinkedTo(other)) continue
 
             val overlap = isColliding(other, 0f)
@@ -301,10 +317,10 @@ class Vehicle {
     }
 
     fun overlapsBounds(other: Vehicle, padding: Float): Boolean {
-        val min = boundsMin
-        val max = boundsMax
-        val otherMin = other.boundsMin
-        val otherMax = other.boundsMax
+        val min = collisionBoundsMin
+        val max = collisionBoundsMax
+        val otherMin = other.collisionBoundsMin
+        val otherMax = other.collisionBoundsMax
         val di = 2f * padding
         return max.x >= otherMin.x + di && max.y >= otherMin.y + di && max.z >= otherMin.z + di &&
                 min.x + di <= otherMax.x && min.y + di <= otherMax.y && min.z + di <= otherMax.z
@@ -648,41 +664,41 @@ class Vehicle {
     }
 
     fun updateStrictBounds() {
-        boundsMin.set(Double.POSITIVE_INFINITY)
-        boundsMax.set(Double.NEGATIVE_INFINITY)
-        val tmpV = Vector3f()
+        collisionBoundsMin.set(Double.POSITIVE_INFINITY)
+        collisionBoundsMax.set(Double.NEGATIVE_INFINITY)
+        val tmpV = JomlPools.vec3f.borrow()
         for (i in 0 until 8) {
             tmpV.set(
                 if ((i and 1) != 0) localBounds.maxX else localBounds.minX,
                 if ((i and 2) != 0) localBounds.maxY else localBounds.minY,
                 if ((i and 4) != 0) localBounds.maxZ else localBounds.minZ
             ).rotate(rotation)
-            boundsMin.min(tmpV)
-            boundsMax.max(tmpV)
+            collisionBoundsMin.min(tmpV)
+            collisionBoundsMax.max(tmpV)
         }
-        boundsMin.add(position)
-        boundsMax.add(position)
+        collisionBoundsMin.add(position)
+        collisionBoundsMax.add(position)
     }
 
     fun updateTreeBounds() {
-        treeBoundsMin.set(boundsMin).sub(3.0)
-        treeBoundsMax.set(boundsMax).add(3.0)
+        nearbyBoundsMin.set(collisionBoundsMin).sub(3.0)
+        nearbyBoundsMax.set(collisionBoundsMax).add(3.0)
 
-        if (!isTrailer) {
-            val vl = velocity.length()
-            if (vl > 1e-3f) {
-                // 2x for smooth braking
-                val dt1 = 2f * estimateStoppingDistance(vl) / vl
-                val added = predictRoutePosition(this, dt1)
+        if (isTrailer) return // done, trailers just follow
 
-                val vx = added.x - position.x
-                val vy = added.y - position.y
-                val vz = added.z - position.z
-                if (vx > 0) treeBoundsMax.x += vx else treeBoundsMin.x += vx
-                if (vy > 0) treeBoundsMax.y += vy else treeBoundsMin.y += vy
-                if (vz > 0) treeBoundsMax.z += vz else treeBoundsMin.z += vz
-            }
-        }// trailer just follow
+        val vl = velocity.length()
+        if (vl > 1e-3f) {
+            // 2x for smooth braking
+            val dt1 = 2f * estimateStoppingDistance(vl) / vl
+            val added = predictRoutePosition(this, dt1)
+
+            val vx = added.x - position.x
+            val vy = added.y - position.y
+            val vz = added.z - position.z
+            if (vx > 0) nearbyBoundsMax.x += vx else nearbyBoundsMin.x += vx
+            if (vy > 0) nearbyBoundsMax.y += vy else nearbyBoundsMin.y += vy
+            if (vz > 0) nearbyBoundsMax.z += vz else nearbyBoundsMin.z += vz
+        }
     }
 
     fun remove(): Boolean {

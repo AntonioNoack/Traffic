@@ -9,15 +9,13 @@ import me.anno.engine.OfficialExtensions
 import me.anno.engine.debug.DebugLine
 import me.anno.engine.debug.DebugShapes
 import me.anno.engine.ui.render.SceneView.Companion.testSceneWithUI
-import me.anno.io.files.Reference.getReference
-import me.anno.maths.Maths.TAUf
 import me.anno.maths.Maths.posMod
 import me.anno.traffic.Network
 import me.anno.traffic.Street
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
+import me.anno.utils.OS.res
 import org.joml.Vector3d
 import java.lang.Math.TAU
-import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.min
 
@@ -94,7 +92,7 @@ fun main() {
         )
     }
 
-    val carRef = getReference("/media/antonio/4TB WDRed/Assets/Quaternius/Cars.zip/SportsCar2.fbx/Scene.json")
+    val carRef = res.getChild("meshes/SportsCar2.fbx/Scene.json")
     scene.add(VehicleRenderer(carRef, network))
     scene.add(RandomNavigator(network))
 
@@ -119,17 +117,7 @@ fun debugDrawCircle(center: Vector3d, radius: Double) {
     }
 }
 
-fun absAngleDiff(angle: Float): Float {
-    val v = posMod(abs(angle), TAUf)
-    return min(v, TAUf - v)
-}
-
 fun absAngleDiff(angle: Double): Double {
     val v = posMod(abs(angle), TAU)
     return min(v, TAU - v)
-}
-
-fun angleDiff(angle: Double): Double {
-    val v = posMod(abs(angle), TAU) // 0 .. TAU
-    return if (v < PI) v else v - TAU // -PI .. +PI
 }

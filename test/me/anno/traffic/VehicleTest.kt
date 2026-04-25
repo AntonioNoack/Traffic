@@ -34,7 +34,7 @@ class VehicleTest {
 
         val dt = 0.1f
         for (i in 0 until 100) {
-            v1.update(dt)
+            v1.updateS(dt)
         }
 
         assertTrue(v1.velocity.z > 0)
@@ -66,9 +66,9 @@ class VehicleTest {
 
         val dt = 0.1f
         var maxAngularVel = 0f
+        val vs = listOf(leader, follower)
         for (i in 0 until 300) {
-            leader.update(dt)
-            follower.update(dt)
+            vs.update(dt)
             maxAngularVel = maxOf(maxAngularVel, abs(follower.angularVelocity))
             check(leader.velocity.isFinite)
             check(follower.velocity.isFinite)
@@ -98,9 +98,9 @@ class VehicleTest {
         val dt = 0.01f
         val initialDist = v1.position.distance(v2.position)
 
+        val vs = listOf(v1, v2)
         for (i in 0 until 10) {
-            v1.update(dt)
-            v2.update(dt)
+            vs.update(dt)
         }
 
         val finalDist = v1.position.distance(v2.position)
@@ -123,9 +123,9 @@ class VehicleTest {
         v2.nearby.add(v1)
 
         val dt = 0.05f
+        val vs = listOf(v1, v2)
         for (i in 0 until 20) {
-            v1.update(dt)
-            v2.update(dt)
+            vs.update(dt)
         }
 
         assertTrue(v1.position.distance(v2.position) >= 3.9, "Vehicles should not overlap after contact")
@@ -133,10 +133,7 @@ class VehicleTest {
 
     @Test
     fun testFollowerDoesNotPassLeader() {
-        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
-        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
-        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
-        val lane = Lane(p0, p1, p2)
+        val lane = createStraight(100.0)
 
         val leader = Vehicle()
         leader.position.set(0.0, 0.0, 20.0)
@@ -156,9 +153,9 @@ class VehicleTest {
         follower.nearby.add(leader)
 
         val dt = 0.05f
+        val vs = listOf(leader, follower)
         for (i in 0 until 200) {
-            leader.update(dt)
-            follower.update(dt)
+            vs.update(dt)
             assertTrue(follower.position.z <= leader.position.z + 0.01, "Follower must not pass the leader")
         }
 
@@ -167,10 +164,7 @@ class VehicleTest {
 
     @Test
     fun testFollowerBrakesForPredictedLaneIntrusion() {
-        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
-        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
-        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
-        val lane = Lane(p0, p1, p2)
+        val lane = createStraight(100.0)
 
         val follower = Vehicle()
         follower.route.add(lane)
@@ -189,7 +183,7 @@ class VehicleTest {
 
         val dt = 0.1f
         for (i in 0 until 30) {
-            follower.update(dt)
+            follower.updateS(dt)
         }
 
         assertTrue(follower.velocity.length() < 12.0f, "Follower should slow down for the predicted intrusion")
@@ -198,10 +192,7 @@ class VehicleTest {
 
     @Test
     fun testVehicleDoesNotReverseWhenBlocked() {
-        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
-        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
-        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
-        val lane = Lane(p0, p1, p2)
+        val lane = createStraight(100.0)
 
         val follower = Vehicle()
         follower.route.add(lane)
@@ -221,9 +212,9 @@ class VehicleTest {
         val dt = 0.05f
         var minVelocityZ = Float.POSITIVE_INFINITY
         var minPositionZ = Double.POSITIVE_INFINITY
+        val vs = listOf(follower, blocker)
         for (i in 0 until 200) {
-            follower.update(dt)
-            blocker.update(dt)
+            vs.update(dt)
             minVelocityZ = minOf(minVelocityZ, follower.velocity.z)
             minPositionZ = minOf(minPositionZ, follower.position.z)
             if (i % 20 == 0) {
@@ -241,10 +232,7 @@ class VehicleTest {
 
     @Test
     fun testLoneVehicleDoesNotCrash() {
-        val p0 = LanePoint(Vector3d(0.0, 0.0, 0.0), Quaternionf(), 0.0, 0.0)
-        val p1 = LanePoint(Vector3d(0.0, 0.0, 50.0), Quaternionf(), 0.0, 0.0)
-        val p2 = LanePoint(Vector3d(0.0, 0.0, 100.0), Quaternionf(), 0.0, 0.0)
-        val lane = Lane(p0, p1, p2)
+        val lane = createStraight(100.0)
 
         val vehicle = Vehicle()
         vehicle.route.add(lane)
@@ -256,7 +244,7 @@ class VehicleTest {
 
         val dt = 0.1f
         for (i in 0 until 200) {
-            vehicle.update(dt)
+            vehicle.updateS(dt)
             assertFalse(vehicle.isCrashed, "A lone vehicle should not crash")
         }
     }
@@ -265,7 +253,7 @@ class VehicleTest {
     fun testDeterministicCrashSpin() {
         val v1 = Vehicle()
         v1.position.set(0.0, 0.0, 0.0)
-        v1.velocity.set(0.0, 0.0, 20.0) // Moving fast forward
+        v1.velocity.set(0.0, 0.0, 20.0) // Moving fast-forward
 
         val v2 = Vehicle()
         // Offset v2 so it's a glancing blow (T-bone style)
@@ -277,14 +265,14 @@ class VehicleTest {
 
         val dt = 0.01f
         // Run update to trigger crash
-        v1.update(dt)
-        v2.update(dt)
+        listOf(v1, v2).update(dt)
 
         assertTrue(v1.isCrashed)
         assertTrue(v2.isCrashed)
         assertNotEquals(0.0, v1.angularVelocity, "Collision should have induced spin")
 
         val spinBefore = v1.angularVelocity
+
         // Re-run the exact same setup to verify determinism
         val v1b = Vehicle()
         v1b.position.set(0.0, 0.0, 0.0)
@@ -295,26 +283,26 @@ class VehicleTest {
         v1b.nearby.add(v2b)
         v2b.nearby.add(v1b)
 
-        v1b.update(dt)
+        listOf(v1b, v2b).update(dt)
         assertEquals(spinBefore, v1b.angularVelocity, "Physics should be deterministic")
     }
 
     @Test
     fun testSidewaysResistance() {
-        val v1 = Vehicle()
-        v1.position.set(0.0, 0.0, 0.0)
-        v1.rotation.rotationY(0f)
+        val vehicle = Vehicle()
+        vehicle.position.set(0.0, 0.0, 0.0)
+        vehicle.rotation.rotationY(0f)
 
         // Force a velocity that is purely lateral
-        v1.velocity.set(5.0, 0.0, 0.0)
+        vehicle.velocity.set(5.0, 0.0, 0.0)
 
         val dt = 0.1f
-        v1.update(dt)
+        vehicle.updateS(dt)
 
         // Sideways velocity should be heavily damped by tire grip (maxLateralG = 1.0)
         // 1.0G * 0.1s = 0.981 m/s reduction
         val expectedReduction = 0.981f
-        assertEquals(5f - expectedReduction, v1.velocity.x, 0.01f)
+        assertEquals(5f - expectedReduction, vehicle.velocity.x, 0.01f)
     }
 
     @Test
@@ -330,7 +318,7 @@ class VehicleTest {
 
         val dt = 0.1f
         for (i in 0 until 150) {
-            v.update(dt)
+            v.updateS(dt)
         }
 
         // Vehicle should have turned and be moving roughly in +X direction
@@ -352,7 +340,7 @@ class VehicleTest {
         v.timeSinceCollision = 1f
 
         val dt = 0.1f
-        v.update(dt)
+        v.updateS(dt)
 
         // vF < -0.1 should trigger stopping force
         assertTrue(v.velocity.z > -0.1, "Reversing should be prevented")
@@ -371,7 +359,7 @@ class VehicleTest {
             val debug = i == 19
             var numSteps = 0
             while (numSteps++ < 200) {
-                v.update(dt)
+                v.updateS(dt)
 
                 if (debug && numSteps % 10 == 0) {
                     val angle = v.rotation.getEulerAngleYXZvY()
@@ -405,7 +393,7 @@ class VehicleTest {
 
             val dt = 0.1f
             while (v.velocity.lengthSquared() > 1e-6f) {
-                v.update(dt)
+                v.updateS(dt)
             }
 
             println("expected: $expected")

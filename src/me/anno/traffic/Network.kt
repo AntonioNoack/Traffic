@@ -9,8 +9,8 @@ import me.anno.engine.debug.DebugShapes
 import me.anno.engine.serialization.NotSerializedProperty
 import me.anno.graph.octtree.KdTreePairs.queryPairs
 import me.anno.maths.Maths.sq
-import me.anno.traffic.utils.PointTree
-import me.anno.traffic.utils.VehicleTree
+import me.anno.traffic.trees.PointTree
+import me.anno.traffic.trees.NearbyVehicleTree
 import me.anno.ui.UIColors
 import org.joml.AABBd
 import org.joml.Vector3d
@@ -49,13 +49,13 @@ class Network : System(), OnUpdate {
     val numPoints get() = points.size
 
     private val pointTree = PointTree()
-    val vehicleTree = VehicleTree()
+    val nearbyVehicleTree = NearbyVehicleTree()
 
     private fun rebuildVehicleTree() {
-        vehicleTree.clear()
+        nearbyVehicleTree.clear()
         for (vehicle in vehicles) {
             vehicle.updateTreeBounds()
-            vehicleTree.add(vehicle)
+            nearbyVehicleTree.add(vehicle)
         }
     }
 
@@ -64,7 +64,7 @@ class Network : System(), OnUpdate {
             vehicle.nearby.clear()
         }
 
-        vehicleTree.queryPairs(0) { a, b ->
+        nearbyVehicleTree.queryPairs(0) { a, b ->
             a.nearby.add(b)
             b.nearby.add(a)
             false
@@ -78,8 +78,8 @@ class Network : System(), OnUpdate {
         for (vehicle in vehicles) {
             val aabb = DebugAABB(
                 AABBd()
-                    .setMin(vehicle.boundsMin)
-                    .setMax(vehicle.boundsMax),
+                    .setMin(vehicle.collisionBoundsMin)
+                    .setMax(vehicle.collisionBoundsMax),
                 -1, 0f
             )
             DebugShapes.showDebugAABB(aabb)
@@ -90,8 +90,8 @@ class Network : System(), OnUpdate {
         for (vehicle in vehicles) {
             val aabb = DebugAABB(
                 AABBd()
-                    .setMin(vehicle.treeBoundsMin)
-                    .setMax(vehicle.treeBoundsMax),
+                    .setMin(vehicle.nearbyBoundsMin)
+                    .setMax(vehicle.nearbyBoundsMax),
                 UIColors.midOrange, 0f
             )
             DebugShapes.showDebugAABB(aabb)
@@ -105,15 +105,9 @@ class Network : System(), OnUpdate {
     fun update(dt: Float) {
         rebuildVehicleTree()
         findCloseVehicles()
-        updateVehicles(dt)
+        vehicles.update(dt)
         deleteCrashedVehicles()
         accumulateStatistics(dt)
-    }
-
-    fun updateVehicles(dt: Float) {
-        for (vehicle in vehicles) {
-            vehicle.update(dt)
-        }
     }
 
     fun accumulateStatistics(dt: Float) {
@@ -140,12 +134,12 @@ class Network : System(), OnUpdate {
 
     fun addVehicle(vehicle: Vehicle) {
         vehicles.add(vehicle)
-        vehicleTree.add(vehicle)
+        nearbyVehicleTree.add(vehicle)
     }
 
     fun removeVehicle(vehicle: Vehicle) {
         vehicles.remove(vehicle)
-        vehicleTree.remove(vehicle)
+        nearbyVehicleTree.remove(vehicle)
         vehicle.remove()
     }
 

@@ -1,4 +1,4 @@
-package me.anno.traffic.utils
+package me.anno.traffic.trees
 
 import me.anno.graph.octtree.KdTree
 import me.anno.graph.octtree.OctTree

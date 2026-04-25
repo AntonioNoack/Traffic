@@ -30,10 +30,10 @@ class TrailerTests {
         println(engine.position.distance(trailer.position))
 
         val dt = 0.1f
+        val vs = listOf(engine, trailer)
         repeat(200) {
             println("\n--------------------")
-            engine.update(dt)
-            trailer.update(dt)
+            vs.update(dt)
 
             val pos = trailer.calculateTrailingPosition(trailer.linkToEngine!!)
             val dist = pos.distance(trailer.position)
@@ -55,9 +55,9 @@ class TrailerTests {
         engine.maxVelocity = 0f
 
         val dt = 0.1f
+        val vs = listOf(engine, trailer)
         repeat(50) {
-            engine.update(dt)
-            trailer.update(dt)
+            vs.update(dt)
         }
 
         assertTrue(trailer.velocity.length() < 0.01f, "Trailer should not move on its own")
@@ -74,9 +74,9 @@ class TrailerTests {
         engine.velocity.set(0f, 0f, 8f)
 
         val dt = 0.1f
+        val vs = listOf(engine, trailer)
         repeat(20) {
-            engine.update(dt)
-            trailer.update(dt)
+            vs.update(dt)
 
             println("follows[$it]: ${engine.position.f2()} -> ${trailer.position.f2()}, ${trailer.velocity.f2()}")
         }
@@ -99,9 +99,9 @@ class TrailerTests {
         engine.velocity.set(0f, 0f, 10f)
 
         val dt = 0.05f
+        val vs = listOf(engine, trailer)
         repeat(200) {
-            engine.update(dt)
-            trailer.update(dt)
+            vs.update(dt)
         }
 
         val forward = trailer.rotation.transform(Vector3d(0.0, 0.0, 1.0))
@@ -119,9 +119,9 @@ class TrailerTests {
         engine.velocity.set(0f, 0f, 40f)
 
         val dt = 0.02f
+        val vs = listOf(engine, trailer)
         repeat(300) {
-            engine.update(dt)
-            trailer.update(dt)
+            vs.update(dt)
 
             assertTrue(engine.position.isFinite)
             assertTrue(trailer.position.isFinite)
@@ -146,9 +146,9 @@ class TrailerTests {
         engine.maxVelocity = 10f
 
         val dt = 0.1f
+        val vs = listOf(engine, trailer)
         repeat(200) {
-            engine.update(dt)
-            trailer.update(dt)
+            vs.update(dt)
 
             if (it % 5 == 0) {
                 val engineForward = engine.rotation.transform(Vector3d(0.0, 0.0, 1.0))
@@ -177,10 +177,9 @@ class TrailerTests {
         engine.velocity.set(0f, 0f, 12f)
 
         val dt = 0.05f
+        val vs = listOf(engine, t1, t2)
         repeat(300) {
-            engine.update(dt)
-            t1.update(dt)
-            t2.update(dt)
+            vs.update(dt)
 
             if (it % 10 == 0) {
                 println("${engine.position.f2()}, ${t1.position.f2()}, ${t2.position.f2()}")
@@ -210,9 +209,9 @@ class TrailerTests {
         val dt = 0.05f
         var maxAngle = 0.0
 
+        val vs = listOf(engine,trailer)
         repeat(200) {
-            engine.update(dt)
-            trailer.update(dt)
+            vs.update(dt)
 
             val forward = trailer.rotation.transform(Vector3d(0.0, 0.0, 1.0))
             val angle = atan2(forward.x, forward.z)
@@ -242,10 +241,9 @@ class TrailerTests {
         engine.velocity.set(0f, 0f, 10f)
 
         val dt = 0.05f
+        val vs = listOf(engine, trailer, obstacle)
         repeat(200) {
-            engine.update(dt)
-            trailer.update(dt)
-            obstacle.update(dt)
+            vs.update(dt)
         }
 
         val dist = engine.position.distance(trailer.position)
