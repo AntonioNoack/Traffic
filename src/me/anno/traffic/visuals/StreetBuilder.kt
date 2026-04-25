@@ -2,10 +2,8 @@ package me.anno.traffic.visuals
 
 import me.anno.maths.Maths.PIf
 import me.anno.maths.Maths.mixAngle
-import me.anno.traffic.Lane
-import me.anno.traffic.LanePoint
-import me.anno.traffic.Network
-import me.anno.traffic.Street
+import me.anno.traffic.*
+import me.anno.utils.structures.lists.Lists.createArrayList
 import org.joml.Quaternionf
 import org.joml.Vector3d
 import kotlin.math.atan2
@@ -22,6 +20,10 @@ class StreetBuilder(val network: Network) {
 
     fun getPoint(i: Int, j: Int, n: Int, flip: Boolean): LanePoint {
         val jr = (j - (n - 1) * 0.5) * laneWidth
+        return getPoint(i, jr, flip)
+    }
+
+    fun getPoint(i: Int, jr: Double, flip: Boolean): LanePoint {
 
         // calculate ideal position
         val angle0 = position0.angleYTo(position1)
@@ -47,43 +49,50 @@ class StreetBuilder(val network: Network) {
             else -> throw IllegalStateException()
         }
 
-        val idealPosition = Vector3d(base)
+        val position = Vector3d(base)
             .add(cos(angleY) * jr, 0.0, -sin(angleY) * jr)
-        val point0 = network.getPoint(idealPosition, laneWidth * 0.5)
-        if (point0 != null) return point0
 
         if (!flip) {
             angleY += PIf
             angleX = -angleX
         }
 
-        val rot = Quaternionf().rotateYXZ(angleY.toFloat(), angleX.toFloat(), 0f)
-        val point1 = LanePoint(idealPosition, rot, angleY, laneWidth * 0.5)
-        network.addPoint(point1)
-        return point1
+        val rotation = Quaternionf().rotateYXZ(angleY.toFloat(), angleX.toFloat(), 0f)
+        return LanePoint(position, rotation, angleY, laneWidth * 0.5)
     }
 
+    fun getPoint(i: Int): StreetPoint {
+        val base = when (i) {
+            0 -> position0
+            1 -> position1
+            2 -> position2
+            else -> throw IllegalStateException()
+        }
+        val point = network.getOrPutPoint(base, laneWidth * 0.5)
+        base.set(point.position)
+        return point
+    }
 
     fun createStreet(): Street {
         val numLanes = 6
         val numReversed = 3
-        val from = List(numLanes) { laneId ->
+        val fromList = List(numLanes) { laneId ->
             getPoint(0, laneId, numLanes, flip = laneId < numReversed)
         }
-        val control = List(numLanes) { laneId ->
+        val controlList = List(numLanes) { laneId ->
             getPoint(1, laneId, numLanes, flip = laneId < numReversed)
         }
-        val to = List(numLanes) { laneId ->
+        val toList = List(numLanes) { laneId ->
             getPoint(2, laneId, numLanes, flip = laneId < numReversed)
         }
-        val lanes = List(6) { laneId ->
+        val lanes = createArrayList(6) { laneId ->
             if (laneId < numReversed) {
-                Lane(to[laneId], control[laneId], from[laneId])
+                Lane(toList[laneId], controlList[laneId], fromList[laneId])
             } else {
-                Lane(from[laneId], control[laneId], to[laneId])
+                Lane(fromList[laneId], controlList[laneId], toList[laneId])
             }
         }
-        return Street(lanes)
+        return Street(getPoint(0), getPoint(1), getPoint(2), lanes)
     }
 
     fun placeStreet(): Street {

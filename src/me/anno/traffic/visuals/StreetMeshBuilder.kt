@@ -30,13 +30,17 @@ object StreetMeshBuilder {
         ), null, false
     )
 
-    fun addStreetMesh(street: Street, entity: Entity) {
+    fun addStreetMesh(street: List<Lane>, entity: Entity) {
         val fixMaterial = Material().apply { cullMode = CullMode.BOTH }
         entity.add(MeshComponent(createStreetMesh(street), fixMaterial))
     }
 
-    fun createStreetMesh(street: Street): Mesh {
-        val meshes = street.lanes.map { lane -> createLaneMesh(lane) }
+    fun addStreetMesh(street: Street, entity: Entity) {
+        addStreetMesh(street.lanes, entity)
+    }
+
+    fun createStreetMesh(street: List<Lane>): Mesh {
+        val meshes = street.map { lane -> createLaneMesh(lane) }
         return object : MeshJoiner<Mesh>(false, false, mayHaveUVs = true) {
             override fun getMesh(element: Mesh): Mesh = element
             override fun getTransform(element: Mesh, dst: Matrix4x3f) {}

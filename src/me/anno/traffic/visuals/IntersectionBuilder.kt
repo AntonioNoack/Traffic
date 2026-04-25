@@ -95,7 +95,7 @@ fun createIntersection(
 
     crossing.sections.addAll(crossingSections.values)
 
-    addStreetMesh(Street(newLanes), scene)
+    addStreetMesh(newLanes, scene)
     debugDrawCircle(center, radius)
 
     network.addCrossing(crossing)

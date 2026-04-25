@@ -39,6 +39,8 @@ class VehicleHillTests {
         println(uphill.velocity)
         println(flat.velocity)
         println(downhill.velocity)
+
+        // todo test vehicles on a race track with z-rotation...
     }
 
 }

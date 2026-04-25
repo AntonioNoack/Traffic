@@ -9,8 +9,8 @@ import me.anno.engine.debug.DebugShapes
 import me.anno.engine.serialization.NotSerializedProperty
 import me.anno.graph.octtree.KdTreePairs.queryPairs
 import me.anno.maths.Maths.sq
-import me.anno.traffic.trees.PointTree
 import me.anno.traffic.trees.NearbyVehicleTree
+import me.anno.traffic.trees.StreetPointTree
 import me.anno.traffic.vehicle.update
 import me.anno.traffic.vehicle.updateTreeBounds
 import me.anno.ui.UIColors
@@ -23,7 +23,6 @@ class Network : System(), OnUpdate {
     val crossings = ArrayList<Crossing>()
     val lanes = ArrayList<Lane>()
     val streets = ArrayList<Street>()
-    val points = HashSet<LanePoint>()
 
     var timeMultiplier: Double
         get() = Time.timeSpeed
@@ -47,10 +46,7 @@ class Network : System(), OnUpdate {
     @DebugProperty
     val numStreets get() = streets.size
 
-    @DebugProperty
-    val numPoints get() = points.size
-
-    private val pointTree = PointTree()
+    val streetPointTree = StreetPointTree()
     val nearbyVehicleTree = NearbyVehicleTree()
 
     private fun rebuildVehicleTree() {
@@ -179,19 +175,27 @@ class Network : System(), OnUpdate {
         crossings.remove(crossing)
     }
 
-    fun addPoint(point: LanePoint) {
-        if (points.add(point)) pointTree.add(point)
+    fun addPoint(point: StreetPoint) {
+        streetPointTree.add(point)
     }
 
-    fun removePoint(point: LanePoint) {
-        if (points.remove(point)) pointTree.remove(point)
+    fun removePoint(point: StreetPoint) {
+        streetPointTree.remove(point)
     }
 
-    // todo ensure rotation is close, too
-    fun getPoint(position: Vector3d, maxDistance: Double): LanePoint? {
-        var bestPoint: LanePoint? = null
+    fun getOrPutPoint(position: Vector3d, maxDistance: Double): StreetPoint {
+        var point = getPoint(position, maxDistance)
+        if (point != null) return point
+
+        point = StreetPoint(Vector3d(position))
+        addPoint(point)
+        return point
+    }
+
+    fun getPoint(position: Vector3d, maxDistance: Double): StreetPoint? {
+        var bestPoint: StreetPoint? = null
         var bestDistanceSq = sq(maxDistance)
-        pointTree.query(
+        streetPointTree.query(
             Vector3d(position).sub(maxDistance),
             Vector3d(position).add(maxDistance)
         ) { point ->

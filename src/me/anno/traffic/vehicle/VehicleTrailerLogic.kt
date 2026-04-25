@@ -7,6 +7,8 @@ import org.joml.Vector3f
 import kotlin.math.atan2
 import kotlin.math.exp
 
+// todo bug: trailers don't behave properly on hills
+
 fun Vehicle.applyTrailerFollowing(link: VehicleLink, dt: Float) {
     if (link.engine.isCrashed) {
         markAsCrashed()

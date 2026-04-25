@@ -1,6 +1,11 @@
 package me.anno.traffic
 
 /**
- * a structure for quickly connecting other things? idk...
+ * a structure for quickly editing lanes
  * */
-data class Street(val lanes: List<Lane>)
+data class Street(
+    val from: StreetPoint,
+    val control: StreetPoint?,
+    val to: StreetPoint,
+    val lanes: ArrayList<Lane>
+)
