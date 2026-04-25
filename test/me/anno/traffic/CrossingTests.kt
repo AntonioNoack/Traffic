@@ -92,6 +92,7 @@ class CrossingTests {
         vehicle.route.addAll(northToSouthLane)
         vehicle.position.set(0.0, 0.0, -20.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
+        vehicle.updateDirections()
         vehicle.maxVelocity = 13f
 
         val initialSpeed = vehicle.velocity.length()
@@ -121,6 +122,7 @@ class CrossingTests {
         vehicle.route.addAll(northToSouthLane)
         vehicle.position.set(0.0, 0.0, -20.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
+        vehicle.updateDirections()
         vehicle.maxVelocity = 13f
         vehicle.velocity.set(0.0, 0.0, 5.0)
 
@@ -144,6 +146,7 @@ class CrossingTests {
         vehicle.route.addAll(northToSouthLane)
         vehicle.position.set(0.0, 0.0, -60.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
+        vehicle.updateDirections()
         vehicle.velocity.set(0.0, 0.0, 8.0)
         vehicle.maxVelocity = 8f
 
@@ -200,6 +203,7 @@ class CrossingTests {
         vehicles.forEach { vehicle ->
             vehicle.route.addAll(northToSouthLane)
             vehicle.rotation.rotationY((PI * 0.5).toFloat())
+            vehicle.updateDirections()
             vehicle.velocity.set(0.0, 0.0, 8.0)
             vehicle.maxVelocity = 8f
         }
@@ -287,6 +291,7 @@ class CrossingTests {
                 vehicle.route.add(entryLane)
                 vehicle.route.add(exitLane)
                 vehicle.rotation.rotationY((PI * 0.5).toFloat())
+                vehicle.updateDirections()
                 vehicle.velocity.set(0.0, 0.0, 8.0)
                 vehicle.maxVelocity = 8f
             }
@@ -342,6 +347,7 @@ class CrossingTests {
         vehicle.route.addAll(northToSouthLane)
         vehicle.position.set(0.0, 0.0, -50.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
+        vehicle.updateDirections()
         vehicle.maxVelocity = 13f
         vehicle.velocity.set(0.0, 0.0, 10.0)
 
@@ -414,6 +420,7 @@ class CrossingTests {
         vehicle.route.add(exitLane)
         vehicle.position.set(0.0, 0.0, -60.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
+        vehicle.updateDirections()
         vehicle.velocity.set(0.0, 0.0, 8.0)
         vehicle.maxVelocity = 13f
 
@@ -447,6 +454,7 @@ class CrossingTests {
         northVehicle.route.addAll(northSouth)
         northVehicle.position.set(0.0, 0.0, -60.0)
         northVehicle.rotation.rotationY((PI * 0.5).toFloat())
+        northVehicle.updateDirections()
         northVehicle.velocity.set(0.0, 0.0, 8.0)
         northVehicle.maxVelocity = 8f
 
@@ -454,6 +462,7 @@ class CrossingTests {
         westVehicle.route.addAll(westEast)
         westVehicle.position.set(-60.0, 0.0, 0.0)
         westVehicle.rotation.rotationY(0f)
+        westVehicle.updateDirections()
         westVehicle.velocity.set(8.0, 0.0, 0.0)
         westVehicle.maxVelocity = 8f
 
@@ -524,6 +533,7 @@ class CrossingTests {
         turnVehicle.route.add(exitLane)
         turnVehicle.position.set(0.0, 0.0, -60.0)
         turnVehicle.rotation.rotationY((PI * 0.5).toFloat())
+        turnVehicle.updateDirections()
         turnVehicle.velocity.set(0.0, 0.0, 8.0)
         turnVehicle.maxVelocity = 13f
 

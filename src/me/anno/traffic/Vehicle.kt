@@ -41,6 +41,9 @@ class Vehicle {
     var angularVelocity = 0f
     var steeringAngle = 0f
 
+    val forward = Vector3f(0f, 0f, 1f)
+    val right = Vector3f(1f, 0f, 0f)
+
     val boundsMin = Vector3d()
     val boundsMax = Vector3d()
 
@@ -79,7 +82,7 @@ class Vehicle {
     fun attachTrailer(trailer: Vehicle, fromDist: Float, toDist: Float) {
         trailer.linkToEngine = VehicleLink(this, fromDist, toDist)
         trailer.position.set(position)
-            .sub(rotation.transform(Vector3f(0f, 0f, fromDist + toDist)))
+            .fma(-(fromDist + toDist), forward)
         trailer.route = route
     }
 
@@ -92,16 +95,14 @@ class Vehicle {
 
     private fun applyMindfulDriving(dt: Float) {
         val targetVelocity = computeTargetVelocity()
-        val forward = rotation.transform(Vector3f(0.0, 0.0, 1.0))
-        val right = rotation.transform(Vector3f(1.0, 0.0, 0.0))
 
         val vF = velocity.dot(forward)
         val vR = velocity.dot(right)
 
-        applyRollingVelocity(targetVelocity, right, forward, vR, vF, dt)
-        applySteering(targetVelocity, right, forward, vR, vF, dt)
+        applyRollingVelocity(targetVelocity, vR, vF, dt)
+        applySteering(targetVelocity, vR, vF, dt)
 
-        applyReversingPrevention(vF, forward)
+        applyReversingPrevention(vF)
     }
 
     private fun applyTrailerFollowing(link: VehicleLink, dt: Float) {
@@ -123,8 +124,6 @@ class Vehicle {
         val velocity = velocity
         if (velocity.lengthSquared() > 1e-3f) {
 
-            val forward = rotation.transform(Vector3f(0f, 0f, 1f))
-
             val headingError = -atan2(
                 forward.x * velocity.z - forward.z * velocity.x, // cross
                 forward.x * velocity.x + forward.z * velocity.z // dot
@@ -145,7 +144,6 @@ class Vehicle {
 
     private fun applyRollingVelocity(
         targetVelocity: Vector3f,
-        right: Vector3f, forward: Vector3f,
         vR: Float, vF: Float, dt: Float,
     ) {
         // todo implement gears and shifting time
@@ -167,7 +165,6 @@ class Vehicle {
 
     private fun applySteering(
         targetVelocity: Vector3f,
-        right: Vector3f, forward: Vector3f,
         vR: Float, vF: Float, dt: Float,
     ) {
         // 3. Steering and Rotation
@@ -194,12 +191,12 @@ class Vehicle {
             steeringAngle *= exp(-dt * 5f)
         }
 
-        val targetOmega = calculateTargetOmega(forward, targetHeading, vR, vF, currentSpeed)
+        val targetOmega = calculateTargetOmega(targetHeading, vR, vF, currentSpeed)
         updateAngularVelocity(targetOmega, dt)
     }
 
     private fun calculateTargetOmega(
-        forward: Vector3f, targetHeading: Float,
+        targetHeading: Float,
         vR: Float, vF: Float,
         currentSpeed: Float,
     ): Float {
@@ -222,7 +219,7 @@ class Vehicle {
         angularVelocity = (angularVelocity + targetOmega * stiffness * dt) / (1f + (stiffness + damping) * dt)
     }
 
-    private fun applyReversingPrevention(vF: Float, forward: Vector3f) {
+    private fun applyReversingPrevention(vF: Float) {
         if (vF < 0f && timeSinceCollision > 0.5f) {
             velocity.fma(-vF, forward)
         }
@@ -303,7 +300,7 @@ class Vehicle {
         }
     }
 
-    private fun overlapsBounds(other: Vehicle, padding: Float): Boolean {
+    fun overlapsBounds(other: Vehicle, padding: Float): Boolean {
         val min = boundsMin
         val max = boundsMax
         val otherMin = other.boundsMin
@@ -313,19 +310,78 @@ class Vehicle {
                 min.x + di <= otherMax.x && min.y + di <= otherMax.y && min.z + di <= otherMax.z
     }
 
+    fun boundsDistance(other: Vehicle): Collision {
+        val forwardA = forward
+        val rightA = right
+        val hXA = localBounds.deltaX * 0.5f
+        val hZA = localBounds.deltaZ * 0.5f
+        val centerA = Vector3d(position)
+            .fma(localBounds.centerX, rightA)
+            .fma(localBounds.centerZ, forwardA)
+
+        val forwardB = other.forward
+        val rightB = other.right
+        val hXB = other.localBounds.deltaX * 0.5f
+        val hZB = other.localBounds.deltaZ * 0.5f
+        val centerB = Vector3d(other.position)
+            .fma(other.localBounds.centerX, rightB)
+            .fma(other.localBounds.centerZ, forwardB)
+
+        val relCenter = centerB.sub(centerA, Vector3f())
+        val axes = arrayOf(rightA, forwardA, rightB, forwardB)
+
+        var minOverlap = Float.POSITIVE_INFINITY
+        var minSeparation = Float.POSITIVE_INFINITY
+        var mtvAxis: Vector3f? = null
+        var separatingAxis: Vector3f? = null
+
+        var colliding = true
+
+        for (axis in axes) {
+            val distProj = abs(relCenter.dot(axis))
+            val radiusA = abs(rightA.dot(axis)) * hXA + abs(forwardA.dot(axis)) * hZA
+            val radiusB = abs(rightB.dot(axis)) * hXB + abs(forwardB.dot(axis)) * hZB
+
+            val overlap = radiusA + radiusB - distProj
+            if (overlap > 0.0f) {
+                // penetration
+                if (overlap < minOverlap) {
+                    minOverlap = overlap
+                    mtvAxis = axis
+                }
+            } else {
+                // separation
+                colliding = false
+                val separation = -overlap
+                if (separation < minSeparation) {
+                    minSeparation = separation
+                    separatingAxis = axis
+                }
+            }
+        }
+
+        return if (colliding) {
+            // positive overlap = penetration depth
+            Collision(mtvAxis!!, minOverlap, relCenter)
+        } else {
+            // negative overlap = gap between objects
+            Collision(separatingAxis!!, -minSeparation, relCenter)
+        }
+    }
+
     private fun isColliding(other: Vehicle, padding: Float): Collision? {
         if (!overlapsBounds(other, padding)) return null
 
-        val forwardA = rotation.transform(Vector3f(0.0, 0.0, 1.0))
-        val rightA = rotation.transform(Vector3f(1.0, 0.0, 0.0))
+        val forwardA = forward
+        val rightA = right
         val hXA = localBounds.deltaX * 0.5f + padding
         val hZA = localBounds.deltaZ * 0.5f + padding
         val centerA = Vector3d(position)
             .fma(localBounds.centerX, rightA)
             .fma(localBounds.centerZ, forwardA)
 
-        val forwardB = other.rotation.transform(Vector3f(0.0, 0.0, 1.0))
-        val rightB = other.rotation.transform(Vector3f(1.0, 0.0, 0.0))
+        val forwardB = other.forward
+        val rightB = other.right
         val hXB = other.localBounds.deltaX * 0.5f + padding
         val hZB = other.localBounds.deltaZ * 0.5f + padding
         val centerB = Vector3d(other.position)
@@ -457,7 +513,6 @@ class Vehicle {
 
     private fun followOtherVehicles(desiredSpeed: Float): Float {
         var desiredSpeed = desiredSpeed
-        val forward = rotation.transform(Vector3f(0f, 0f, 1f))
         val currentSpeed = velocity.length()
 
         val brakingDistance = 2f * estimateStoppingDistance(currentSpeed) // 2x for soft braking
@@ -523,8 +578,8 @@ class Vehicle {
 
     fun calculateTrailingPosition(link: VehicleLink): Vector3d {
         // Direction engine is facing
-        val engineForward = link.engine.rotation.transform(Vector3f(0f, 0f, 1f))
-        val trailerForward = rotation.transform(Vector3f(0f, 0f, 1f))
+        val engineForward = link.engine.forward
+        val trailerForward = forward
 
         // Target position for trailer (behind engine)
         return Vector3d(link.engine.position)
@@ -581,10 +636,18 @@ class Vehicle {
         rotation.rotateY(angularVelocity * dt)
         rotation.normalize()
         check(rotation.isFinite) { "Invalid rotation by $angularVelocity * $dt" }
+
+        updateDirections()
+
         position.fma(dt.toDouble(), velocity)
     }
 
-    private fun updateStrictBounds() {
+    fun updateDirections() {
+        forward.set(0f, 0f, 1f).rotate(rotation)
+        right.set(1f, 0f, 0f).rotate(rotation)
+    }
+
+    fun updateStrictBounds() {
         boundsMin.set(Double.POSITIVE_INFINITY)
         boundsMax.set(Double.NEGATIVE_INFINITY)
         val tmpV = Vector3f()

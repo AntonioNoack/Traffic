@@ -112,6 +112,7 @@ fun spawnVehicles(network: Network, streets: List<Street>) {
                 val t = (ti + 0.5) / ts
                 lane.getPosition(t, 0.0, 0.0, vehicle.position)
                 lane.getRotation(t.toFloat(), vehicle.rotation).rotateY(PIf) // why is this 180° necessary??
+                vehicle.updateDirections()
                 vehicle.route.add(lane)
 
                 for (i in 0 until 3) {
@@ -130,6 +131,7 @@ fun spawnVehicles(network: Network, streets: List<Street>) {
                     val trailer = Vehicle()
                     trailer.position.set(last.position)
                     trailer.rotation.set(last.rotation)
+                    trailer.updateDirections()
 
                     last.attachTrailer(trailer, 2f, 2f)
                     network.addVehicle(trailer)

@@ -250,6 +250,7 @@ class VehicleTest {
         vehicle.route.add(lane)
         vehicle.position.set(0.0, 0.0, 0.0)
         vehicle.rotation.rotationY(0f)
+        vehicle.updateDirections()
         vehicle.velocity.set(0.0, 0.0, 15.0)
         vehicle.maxVelocity = 15f
 

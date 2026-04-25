@@ -53,6 +53,7 @@ class RightTurnPredictionTest {
         vehicle.route.add(exitLane)
         vehicle.position.set(0.0, 0.0, -60.0)
         vehicle.rotation.rotationY((PI * 0.5).toFloat())
+        vehicle.updateDirections()
         vehicle.velocity.set(0.0, 0.0, 8.0)
         vehicle.maxVelocity = 13f
 
@@ -151,6 +152,7 @@ class RightTurnPredictionTest {
         turnVehicle.route.add(exitLane)
         turnVehicle.position.set(0.0, 0.0, -60.0)
         turnVehicle.rotation.rotationY((PI * 0.5).toFloat())
+        turnVehicle.updateDirections()
         turnVehicle.velocity.set(0.0, 0.0, 8.0)
         turnVehicle.maxVelocity = 13f
 
