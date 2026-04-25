@@ -417,17 +417,11 @@ class CrossingTests {
 
         val entryLane = createLane(entry0, createLanePoint(0.0, -50.0, PI * 0.5), entry1)
 
-        val entryDir = Vector3d(entryLane.getPosition(1.01, 0.0, 0.0, Vector3d()))
-            .sub(entry1.position)
-            .normalize()
-            .mul(10.0)
+        val entryDir = Vector3d(entryLane.getDirection1()).normalize(-10.0)
         val exitLane = createLane(exit0, createLanePoint(50.0, 0.0, 0.0), exit1)
-        val exitDir = Vector3d(exitLane.getPosition(-0.01, 0.0, 0.0, Vector3d()))
-            .sub(exit0.position)
-            .normalize()
-            .mul(10.0)
+        val exitDir = Vector3d(exitLane.getDirection0()).normalize(10.0)
 
-        val centerPoint = Vector3d(entry1.position).add(entryDir).mix(Vector3d(exit0.position).add(exitDir), 0.5)
+        val centerPoint = (entry1.position + entryDir).mix(exit0.position + exitDir, 0.5)
         val angle = (entry1.angle + exit0.angle) * 0.5
         val turnLane = Lane(
             entry1,
@@ -533,16 +527,10 @@ class CrossingTests {
         val entryLane = createLane(entry0, createLanePoint(0.0, -50.0, PI * 0.5), entry1)
         val exitLane = createLane(exit0, createLanePoint(50.0, 0.0, 0.0), exit1)
 
-        val entryDir = Vector3d(entryLane.getPosition(1.01, 0.0, 0.0, Vector3d()))
-            .sub(entry1.position)
-            .normalize()
-            .mul(10.0)
-        val exitDir = Vector3d(exitLane.getPosition(-0.01, 0.0, 0.0, Vector3d()))
-            .sub(exit0.position)
-            .normalize()
-            .mul(10.0)
+        val entryDir = Vector3d(entryLane.getDirection1()).normalize(-10.0)
+        val exitDir = Vector3d(exitLane.getDirection0()).normalize(10.0)
 
-        val centerPoint = Vector3d(entry1.position).add(entryDir).mix(Vector3d(exit0.position).add(exitDir), 0.5)
+        val centerPoint = (entry1.position + entryDir).mix(exit0.position + exitDir, 0.5)
         val angle = (entry1.angle + exit0.angle) * 0.5
         val turnLane = Lane(
             entry1,

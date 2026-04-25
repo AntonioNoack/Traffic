@@ -6,13 +6,7 @@ import me.anno.maths.Maths.PIf
 import me.anno.maths.Maths.mixAngle
 import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
-import me.anno.traffic.Crossing
-import me.anno.traffic.CrossingSection
-import me.anno.traffic.Lane
-import me.anno.traffic.LanePoint
-import me.anno.traffic.Network
-import me.anno.traffic.Street
-import me.anno.traffic.Vehicle
+import me.anno.traffic.*
 import me.anno.traffic.vehicle.attachTrailer
 import me.anno.traffic.vehicle.setOn
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
@@ -63,16 +57,18 @@ fun createIntersection(
             entry.crossingSection = entrySection
 
             val distance0 = entryPoint.position.distance(exitPoint.position)
+            val entryDir = Vector3d(entry.getDirection1())
+            val exitDir = Vector3d(exit.getDirection0()).negate()
             val distance = GoldenSectionSearch.goldenSectionSearch(0.3, 1.0, 0.01, { fac ->
                 val distance = distance0 * fac
-                val entryDir = (entry.getPosition(1.01, 0.0, 0.0, Vector3d()) - entryPoint.position).normalize(distance)
-                val exitDir = (exit.getPosition(-0.01, 0.0, 0.0, Vector3d()) - exitPoint.position).normalize(distance)
+                entryDir.normalize(distance)
+                exitDir.normalize(distance)
                 val entryExtended = entryPoint.position + entryDir
                 val exitExtended = exitPoint.position + exitDir
                 entryExtended.distanceSquared(exitExtended)
             }) * distance0
-            val entryDir = (entry.getPosition(1.01, 0.0, 0.0, Vector3d()) - entryPoint.position).normalize(distance)
-            val exitDir = (exit.getPosition(-0.01, 0.0, 0.0, Vector3d()) - exitPoint.position).normalize(distance)
+            entryDir.normalize(distance)
+            exitDir.normalize(distance)
             val entryExtended = entryPoint.position + entryDir
             val exitExtended = exitPoint.position + exitDir
 

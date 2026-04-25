@@ -5,7 +5,7 @@ import me.anno.traffic.Lane
 import me.anno.traffic.Vehicle
 
 fun Vehicle.setOn(lane: Lane, t: Float) {
-    lane.getPosition(t.toDouble(), 0.0, 0.0, position)
+    lane.getPosition(t.toDouble(), position)
     lane.getRotation(t, rotation).rotateY(PIf) // todo why is this +180° necessary???
     updateDirections()
 

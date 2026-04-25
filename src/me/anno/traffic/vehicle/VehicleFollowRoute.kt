@@ -47,7 +47,6 @@ private fun Vehicle.computeTargetVelocity(): Vector3f {
 
     val updatedRouteIndex = if (didAdvance && canEnterNextLane) routeIndex + 1 else routeIndex
     val updatedRouteIndexF = if (didAdvance && canEnterNextLane) nextT - 1f else min(nextT, 1f)
-    val updatedCurr = route[updatedRouteIndex]
 
     // Target look-ahead position for stable guidance
     val pTarget = predictRoutePositionPlusTime(this, 1f, minVelocity = 1f)
@@ -57,10 +56,7 @@ private fun Vehicle.computeTargetVelocity(): Vector3f {
     val guidanceLenSq = guidance.lengthSquared()
     if (guidanceLenSq > 1e-3f) {
         guidance.div(sqrt(guidanceLenSq))
-    } else {
-        guidance.set(0f, 0f, 1f)
-            .rotate(updatedCurr.getRotation(routeIndexF, Quaternionf()))
-    }
+    } else return guidance.set(0f)
 
     // todo slowly lerp between segments...
     var desiredSpeed = min(curr.maxSpeed, maxVelocity)

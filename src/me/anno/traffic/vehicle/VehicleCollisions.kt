@@ -1,9 +1,7 @@
 package me.anno.traffic.vehicle
 
 import me.anno.maths.Maths.clamp
-import me.anno.traffic.Collision
 import me.anno.traffic.Vehicle
-import me.anno.traffic.vehicle.updateStrictBounds
 import org.joml.Vector3d
 import org.joml.Vector3f
 import kotlin.math.abs
@@ -163,25 +161,21 @@ private fun Vehicle.isColliding(other: Vehicle, padding: Float): Collision? {
     var minOverlap = Float.POSITIVE_INFINITY
     var mtvAxis: Vector3f? = null
 
-    var colliding = true
     for (axis in axes) {
         val distProj = abs(relCenter.dot(axis))
         val radiusA = abs(rightA.dot(axis)) * hXA + abs(forwardA.dot(axis)) * hZA
         val radiusB = abs(rightB.dot(axis)) * hXB + abs(forwardB.dot(axis)) * hZB
         val overlap = radiusA + radiusB - distProj
-        if (overlap <= 0.0) {
-            colliding = false
-            break
-        }
+        if (overlap <= 0.0) return null
+
         if (overlap < minOverlap) {
             minOverlap = overlap
             mtvAxis = axis
         }
     }
 
-    return if (colliding && mtvAxis != null) {
-        Collision(mtvAxis, minOverlap, relCenter)
-    } else null
+    check(mtvAxis != null)
+    return Collision(mtvAxis, minOverlap, relCenter)
 }
 
 

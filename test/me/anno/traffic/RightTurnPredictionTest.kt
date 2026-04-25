@@ -28,15 +28,9 @@ class RightTurnPredictionTest {
         val entryLane = Lane(entry0, lanePoint(0.0, -50.0, PI * 0.5), entry1)
         val exitLane = Lane(exit0, lanePoint(50.0, 0.0, 0.0), exit1)
 
-        val entryDir = Vector3d(entryLane.getPosition(1.01, 0.0, 0.0, Vector3d()))
-            .sub(entry1.position)
-            .normalize()
-            .mul(10.0)
-        val exitDir = Vector3d(exitLane.getPosition(-0.01, 0.0, 0.0, Vector3d()))
-            .sub(exit0.position)
-            .normalize()
-            .mul(10.0)
-        val centerPoint = Vector3d(entry1.position).add(entryDir).mix(Vector3d(exit0.position).add(exitDir), 0.5)
+        val entryDir = Vector3d(entryLane.getDirection1()).normalize(-10.0)
+        val exitDir = Vector3d(exitLane.getDirection0()).normalize(10.0)
+        val centerPoint = (entry1.position + entryDir).mix(exit0.position + exitDir, 0.5)
         val angle = (entry1.angle + exit0.angle) * 0.5
         val turnLane = Lane(entry1, LanePoint(centerPoint, Quaternionf().rotationY(angle.toFloat()), angle, 2.0), exit0)
 
@@ -122,16 +116,9 @@ class RightTurnPredictionTest {
         val entryLane = Lane(lanePoints[0], lanePoint(0.0, -50.0, PI * 0.5), lanePoints[1])
         val exitLane = Lane(lanePoints[2], lanePoint(50.0, 0.0, 0.0), lanePoints[3])
 
-        val entryDir = Vector3d(entryLane.getPosition(1.01, 0.0, 0.0, Vector3d()))
-            .sub(lanePoints[1].position)
-            .normalize()
-            .mul(10.0)
-        val exitDir = Vector3d(exitLane.getPosition(-0.01, 0.0, 0.0, Vector3d()))
-            .sub(lanePoints[2].position)
-            .normalize()
-            .mul(10.0)
-        val centerPoint =
-            Vector3d(lanePoints[1].position).add(entryDir).mix(Vector3d(lanePoints[2].position).add(exitDir), 0.5)
+        val entryDir = Vector3d(entryLane.getDirection1()).normalize(-10.0)
+        val exitDir = Vector3d(exitLane.getDirection0()).normalize(10.0)
+        val centerPoint = (lanePoints[1].position + entryDir).mix(lanePoints[2].position + exitDir, 0.5)
         val angle = (lanePoints[1].angle + lanePoints[2].angle) * 0.5
         val turnLane = Lane(
             lanePoints[1],

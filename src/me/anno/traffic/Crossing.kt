@@ -6,12 +6,6 @@ import java.util.concurrent.atomic.AtomicInteger
 
 open class Crossing(val center: Vector3d, val radius: Double) {
 
-    companion object {
-        private val nextId = AtomicInteger()
-    }
-
-    val id = nextId.getAndIncrement()
-
     val sections = ArrayList<CrossingSection>()
     val onRoute = ArrayList<Vehicle>()
     var onRouteSegment = -1

@@ -6,6 +6,7 @@ import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
 import org.joml.Quaternionf
 import org.joml.Vector3d
+import org.joml.Vector3f
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -30,6 +31,48 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         if (curr == null || next == null) return true
         if (curr.crossing != next.crossing) return true
         return curr.crossing.mayDrive(curr.sectionId, next.sectionId)
+    }
+
+    fun getPosition(t: Double, dst: Vector3d): Vector3d {
+        val f0 = sq(1f - t)
+        val f1 = 2f * (1f - t) * t
+        val f2 = t * t
+
+        return dst.set(0.0)
+            .fma(f0, from.position)
+            .fma(f1, control.position)
+            .fma(f2, to.position)
+    }
+
+    fun getDirection(t: Double): Vector3f {
+        val p0 = from.position
+        val p1 = control.position
+        val p2 = to.position
+        return Vector3f(
+            mix(p1.x - p0.x, p2.x - p1.x, t),
+            mix(p1.y - p0.y, p2.y - p1.y, t),
+            mix(p1.z - p0.z, p2.z - p1.z, t),
+        )
+    }
+
+    fun getDirection0(): Vector3f {
+        val p0 = from.position
+        val p1 = control.position
+        return Vector3f(
+            p1.x - p0.x,
+            p1.y - p0.y,
+            p1.z - p0.z
+        )
+    }
+
+    fun getDirection1(): Vector3f {
+        val p1 = control.position
+        val p2 = to.position
+        return Vector3f(
+            p2.x - p1.x,
+            p2.y - p1.y,
+            p2.z - p1.z
+        )
     }
 
     fun getPosition(t: Double, x: Double, y: Double, dst: Vector3d): Vector3d {
@@ -68,7 +111,7 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         // Allow the search to continue slightly past the lane endpoint so the
         // caller can detect that the vehicle has crossed into the next lane.
         return GoldenSectionSearch.goldenSectionSearch(routeIndexF, 1.5, 1e-4, { t ->
-            getPosition(t, 0.0, 0.0, tmp).distanceSquared(position)
+            getPosition(t, tmp).distanceSquared(position)
         }, flipSign = false)
     }
 
@@ -110,5 +153,11 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
 
         val speed = sqrt(accel * minRadius)
         return min(speed.toFloat(), 130f / 3.6f)
+    }
+
+    fun getCurvature(): Float {
+        val dir0 = getDirection0()
+        val dir1 = getDirection1()
+        return dir0.angleYTo(dir1) / approxLength
     }
 }
