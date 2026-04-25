@@ -1,18 +1,26 @@
 package me.anno.traffic.utils
 
+import me.anno.utils.types.Floats.f2
+import me.anno.utils.types.Floats.f2s
 import org.joml.Quaternionf
-import org.joml.Vector3d
-import org.joml.Vector3f
+import org.joml.Vector
+import org.joml.Vector2d
 
+val Quaternionf.ry get() = getEulerAngleYXZvY()
 
-fun Vector3f.f2(): String {
-    return "(%.2f, %.2f, %.2f)".format(x, y, z)
-}
+val Vector.xz: Vector2d
+    get() {
+        check(numComponents >= 3)
+        return Vector2d(getComp(0), getComp(2))
+    }
 
-fun Vector3d.f2(): String {
-    return "(%.2f, %.2f, %.2f)".format(x, y, z)
-}
-
-fun Quaternionf.f2(): String {
-    return "(%.2f, %.2f, %.2f, %.2f)".format(x, y, z, w)
+fun Vector.f2(): String {
+    val result = StringBuilder()
+    result.append('(')
+    for (i in 0 until numComponents) {
+        if (i > 0) result.append(", ")
+        result.append(getComp(i).f2s())
+    }
+    result.append(')')
+    return result.toString()
 }

@@ -2,6 +2,9 @@ package me.anno.traffic
 
 import me.anno.traffic.VehicleTest.Companion.createStraight
 import me.anno.traffic.utils.f2
+import me.anno.traffic.vehicle.attachTrailer
+import me.anno.traffic.vehicle.calculateTrailingPosition
+import me.anno.traffic.vehicle.update
 import me.anno.utils.assertions.assertEquals
 import me.anno.utils.assertions.assertTrue
 import me.anno.utils.types.Floats.f2
@@ -35,7 +38,7 @@ class TrailerTests {
             println("\n--------------------")
             vs.update(dt)
 
-            val pos = trailer.calculateTrailingPosition(trailer.linkToEngine!!)
+            val pos = calculateTrailingPosition(trailer.forward, trailer.linkToEngine!!)
             val dist = pos.distance(trailer.position)
             println("dist: ${dist.f2()}, vel: ${engine.velocity.length().f2()}, ${trailer.velocity.length().f2()}")
             println("  pos: ${engine.position.f2()} vs ${trailer.position.f2()}, target: ${pos.f2()}, ${engine.rotation.f2()} vs ${trailer.rotation.f2()}")

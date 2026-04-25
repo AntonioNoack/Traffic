@@ -1,4 +1,6 @@
-package me.anno.traffic
+package me.anno.traffic.vehicle
+
+import me.anno.traffic.Vehicle
 
 class VehicleLink(
     val engine: Vehicle,

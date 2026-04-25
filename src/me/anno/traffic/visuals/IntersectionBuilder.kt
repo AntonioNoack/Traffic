@@ -13,6 +13,8 @@ import me.anno.traffic.LanePoint
 import me.anno.traffic.Network
 import me.anno.traffic.Street
 import me.anno.traffic.Vehicle
+import me.anno.traffic.vehicle.attachTrailer
+import me.anno.traffic.vehicle.setOn
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
 import org.joml.Quaternionf
 import org.joml.Vector3d
@@ -109,11 +111,8 @@ fun spawnVehicles(network: Network, streets: List<Street>) {
                 if (Maths.random() < 0.3f) continue
 
                 val vehicle = Vehicle()
-                val t = (ti + 0.5) / ts
-                lane.getPosition(t, 0.0, 0.0, vehicle.position)
-                lane.getRotation(t.toFloat(), vehicle.rotation).rotateY(PIf) // why is this 180° necessary??
-                vehicle.updateDirections()
-                vehicle.route.add(lane)
+                val t = (ti + 0.5f) / ts
+                vehicle.setOn(lane, t)
 
                 for (i in 0 until 3) {
                     extendRoute(vehicle)

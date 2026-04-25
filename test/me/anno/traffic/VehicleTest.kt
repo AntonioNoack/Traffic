@@ -2,6 +2,9 @@ package me.anno.traffic
 
 import me.anno.maths.Maths.TAUf
 import me.anno.traffic.utils.f2
+import me.anno.traffic.vehicle.estimateStoppingDistance
+import me.anno.traffic.vehicle.update
+import me.anno.traffic.vehicle.updateS
 import me.anno.utils.assertions.assertGreaterThan
 import me.anno.utils.types.Floats.f2
 import me.anno.utils.types.Floats.toDegrees
@@ -21,6 +24,19 @@ class VehicleTest {
             val p1 = LanePoint(Vector3d(0.0, 0.0, length * 0.5), q, 0.0, 0.0)
             val p2 = LanePoint(Vector3d(0.0, 0.0, length), q, 0.0, 0.0)
             return Lane(p0, p1, p2)
+        }
+
+        fun createLane(s0: Vector3d, s1: Vector3d, s2: Vector3d): Lane {
+            val p0 = createPoint(s0, s1, s0)
+            val p1 = createPoint(s1, s2, s0)
+            val p2 = createPoint(s2, s2, s1)
+            return Lane(p0, p1, p2)
+        }
+
+        fun createPoint(p0: Vector3d, p1: Vector3d, p2: Vector3d): LanePoint {
+            val angle = p2.angleYTo(p1)
+            val q = Quaternionf().rotationY(angle.toFloat())
+            return LanePoint(p0, q, angle, 0.0)
         }
     }
 

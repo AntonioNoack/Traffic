@@ -1,8 +1,16 @@
 package me.anno.traffic
 
 import me.anno.maths.Maths.TAUf
+import me.anno.traffic.VehicleTest.Companion.createLane
 import me.anno.traffic.VehicleTest.Companion.createStraight
+import me.anno.traffic.utils.f2
+import me.anno.traffic.utils.xz
+import me.anno.traffic.vehicle.boundsDistance
+import me.anno.traffic.vehicle.setOn
+import me.anno.traffic.vehicle.update
+import me.anno.traffic.vehicle.updateStrictBounds
 import me.anno.utils.types.Floats.f2
+import org.joml.Vector3d
 import org.junit.jupiter.api.Test
 import java.util.*
 import kotlin.math.abs
@@ -11,9 +19,10 @@ import kotlin.math.min
 class CrashPreventionTests {
     @Test
     fun testCrashPrevention() {
-        // todo spawn two vehicles in random positions, velocities and orientations, and make sure both reach the goal
-        val random = Random(1324)
-        for (i in 0 until 1000) {
+        // spawn two vehicles in random positions, velocities and orientations, and make sure both reach the goal
+
+        fun runTest(seed: Long, printing: Boolean) {
+            val random = Random(seed)
             val va = Vehicle()
             val vb = Vehicle()
 
@@ -44,19 +53,70 @@ class CrashPreventionTests {
             while (++j < 200) {
                 vehicles.update(dt)
 
-                check(!va.isCrashed)
-                check(!vb.isCrashed)
+                if (printing) {
+                    println("\nStep $j:")
+                    vehicles.forEach {
+                        println("  pos: ${it.position.xz.f2()}, vel: ${it.velocity.xz.f2()}")
+                    }
+                }
+
+                check(
+                    va.timeSinceCollision < 0f &&
+                            vb.timeSinceCollision < 0f
+                ) { "Vehicles[$seed] collided at $j" }
 
                 val progress = min(va.routeIndexF, vb.routeIndexF)
                 if (progress > 0.5f) break
             }
 
-            println("Result[$i]: ${va.routeIndexF}, ${vb.routeIndexF} @$j")
-
-            check(va.routeIndexF > 0.5f)
-            check(vb.routeIndexF > 0.5f)
-
+            check(va.routeIndexF > 0.5f && vb.routeIndexF > 0.5f) {
+                "Result[$seed]: ${va.routeIndexF}, ${vb.routeIndexF} @$j"
+            }
         }
+
+        for (i in 0 until 1000) {
+            val seed = 92L + i
+            try {
+                runTest(seed, false)
+            } catch (_: Exception) {
+                runTest(seed, true)
+                throw IllegalStateException("Unreachable")
+            }
+        }
+    }
+
+    @Test
+    fun driveInPairsTest() {
+        val laneA = createLane(Vector3d(-4.0, 0.0, 0.0), Vector3d(0.0, 0.0, 20.0), Vector3d(+4.0, 0.0, 40.0))
+        val laneB = createLane(Vector3d(+4.0, 0.0, 0.0), Vector3d(0.0, 0.0, 20.0), Vector3d(-4.0, 0.0, 40.0))
+
+        val va = Vehicle()
+        val vb = Vehicle()
+        va.setOn(laneA, 0f)
+        vb.setOn(laneB, 0f)
+
+        val vehicles = listOf(va, vb)
+        for (v in vehicles) {
+            v.nearby.addAll(vehicles)
+            v.nearby.remove(v)
+        }
+
+        val dt = 0.1f
+        for (j in 0 until 50) {
+            vehicles.update(dt)
+
+            println("\nStep $j:")
+            vehicles.forEach {
+                println("  pos: ${it.position.xz.f2()}, vel: ${it.velocity.xz.f2()}")
+            }
+
+            check(va.timeSinceCollision < 0f && vb.timeSinceCollision < 0f) {
+                "Vehicles collided at $j"
+            }
+        }
+
+        println(va.routeIndexF)
+        println(vb.routeIndexF)
     }
 
     @Test

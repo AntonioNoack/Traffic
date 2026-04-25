@@ -11,6 +11,8 @@ import me.anno.graph.octtree.KdTreePairs.queryPairs
 import me.anno.maths.Maths.sq
 import me.anno.traffic.trees.PointTree
 import me.anno.traffic.trees.NearbyVehicleTree
+import me.anno.traffic.vehicle.update
+import me.anno.traffic.vehicle.updateTreeBounds
 import me.anno.ui.UIColors
 import org.joml.AABBd
 import org.joml.Vector3d
