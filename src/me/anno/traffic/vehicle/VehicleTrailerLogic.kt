@@ -16,6 +16,7 @@ fun Vehicle.applyTrailerFollowing(link: VehicleLink, dt: Float) {
 
     applyTrailerPosition(link, dt)
     applyTrailerSteering(dt)
+    updateTrailerRouteIndices()
 }
 
 private fun Vehicle.applyTrailerPosition(link: VehicleLink, dt: Float) {
@@ -56,6 +57,17 @@ fun calculateTrailingPosition(trailerForward: Vector3f, link: VehicleLink): Vect
         .fma(-link.linkToTrailer, trailerForward)
 }
 
+private fun Vehicle.updateTrailerRouteIndices() {
+    val curr = route.getOrNull(routeIndex) ?: return
+
+    val nextT = curr.getClosestT(position, routeIndexF)
+    val didAdvance = nextT > 1f && routeIndex + 1 < route.size
+    val next = route.getOrNull(routeIndex + 1)
+
+    updateCrossing(curr, next, nextT, didAdvance)
+    updateRouteIndices(nextT, didAdvance)
+}
+
 private val Vehicle.rootEngine: Vehicle
     get() {
         var root = this
@@ -72,10 +84,16 @@ fun Vehicle.isLinkedTo(other: Vehicle): Boolean {
 fun Vehicle.attachTrailer(trailer: Vehicle, fromDist: Float, toDist: Float) {
     trailer.linkToEngine = VehicleLink(this, fromDist, toDist)
     trailer.position.set(predictRoutePositionPlusDistance(this, fromDist + toDist))
+
     // todo rotate with curve
     trailer.rotation.set(rotation)
-    // todo update these
+    trailer.rotationY = rotationY
+
+    // todo update these based on the distance/closest point...
     trailer.routeIndex = routeIndex
     trailer.routeIndexF = routeIndexF
-    trailer.route = route
+    trailer.route.addAll(route)
+
+    trailer.updateDirections()
 }
+

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 
 class VehicleTest {
 
@@ -33,10 +34,11 @@ class VehicleTest {
             return Lane(p0, p1, p2)
         }
 
-        fun createPoint(p0: Vector3d, p1: Vector3d, p2: Vector3d): LanePoint {
-            val angle = p2.angleYTo(p1)
-            val q = Quaternionf().rotationY(angle.toFloat())
-            return LanePoint(p0, q, angle, 0.0)
+        fun createPoint(center: Vector3d, p1: Vector3d, p2: Vector3d): LanePoint {
+            val angleY = p2.angleYTo(p1)
+            val angleX = atan2(p2.y-p1.y, p2.distance(p1))
+            val q = Quaternionf().rotationYXZ(angleY.toFloat(), angleX.toFloat(), 0f)
+            return LanePoint(center, q, angleY, 0.0)
         }
     }
 
@@ -188,11 +190,13 @@ class VehicleTest {
         follower.rotation.rotationY(0f)
         follower.velocity.set(0.0, 0.0, 18.0)
         follower.maxVelocity = 18f
+        follower.updateDirections()
 
         val intruder = Vehicle()
         intruder.position.set(2.8, 0.0, 20.0)
         intruder.rotation.rotationY((-PI * 0.5).toFloat())
         intruder.velocity.set(-2.0, 0.0, 0.0)
+        intruder.updateDirections()
 
         follower.nearby.add(intruder)
         intruder.nearby.add(follower)

@@ -45,6 +45,24 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
             .fma(f2, to.position)
     }
 
+    fun snapPositionToSurface(t: Double, dst: Vector3d): Vector3d {
+
+        val pos0 = getPosition(t, Vector3d())
+        val rot0 = getRotation(t.toFloat(), Quaternionf())
+
+        // global -> local
+        dst.sub(pos0)
+        dst.rotateInv(rot0)
+
+        dst.y = 0.0
+
+        // local -> global
+        dst.rotate(rot0)
+        dst.add(pos0)
+
+        return dst
+    }
+
     fun getDirection(t: Double): Vector3f {
         val p0 = from.position
         val p1 = control.position

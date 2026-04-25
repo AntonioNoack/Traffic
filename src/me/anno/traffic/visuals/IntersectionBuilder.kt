@@ -9,10 +9,11 @@ import me.anno.maths.optimization.GoldenSectionSearch
 import me.anno.traffic.*
 import me.anno.traffic.vehicle.attachTrailer
 import me.anno.traffic.vehicle.setOn
+import me.anno.traffic.visuals.RandomNavigator.Companion.extendRoute
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
 import org.joml.Quaternionf
 import org.joml.Vector3d
-
+import kotlin.math.atan2
 
 fun createIntersection(
     network: Network, scene: Entity,
@@ -76,7 +77,12 @@ fun createIntersection(
                 .mix(exitExtended, 0.5)
 
             val angle = mixAngle(entryPoint.angle, exitPoint.angle, 0.5)
-            val control = LanePoint(centerPoint, Quaternionf().rotateY(angle.toFloat()), angle, builder.laneWidth)
+            val angleX = atan2(
+                exitPoint.position.y - entryPoint.position.y,
+                exitPoint.position.distance(entryPoint.position)
+            ).toFloat()
+            val controlRot = Quaternionf().rotateYXZ(angle.toFloat(), angleX, 0f)
+            val control = LanePoint(centerPoint, controlRot, angle, builder.laneWidth)
 
             val lane = Lane(entryPoint, control, exitPoint)
             network.addLane(lane)
@@ -124,25 +130,13 @@ fun spawnVehicles(network: Network, streets: List<Street>) {
                     vehicle.maxDeceleration *= 0.7f
 
                     val trailer = Vehicle()
-                    trailer.position.set(last.position)
-                    trailer.rotation.set(last.rotation)
-                    trailer.updateDirections()
-
                     last.attachTrailer(trailer, 2f, 2f)
+
                     network.addVehicle(trailer)
                     last = trailer
                     chance = 0.2f
                 }
-
             }
         }
     }
-}
-
-fun extendRoute(vehicle: Vehicle) {
-    var curr = vehicle.route.last()
-    curr = curr.to.lanes
-        .filter { it.from == curr.to }
-        .randomOrNull() ?: return
-    vehicle.route.add(curr)
 }

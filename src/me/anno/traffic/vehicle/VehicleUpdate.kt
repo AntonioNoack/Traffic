@@ -1,6 +1,8 @@
 package me.anno.traffic.vehicle
 
+import me.anno.maths.Maths.TAUf
 import me.anno.maths.Maths.absClamp
+import me.anno.maths.Maths.posMod
 import me.anno.traffic.Vehicle
 
 fun List<Vehicle>.update(dt: Float) {
@@ -51,11 +53,17 @@ fun Vehicle.update2() {
 
 fun Vehicle.applyVelocity(dt: Float) {
     angularVelocity = absClamp(angularVelocity, 100f)
-    rotation.rotateY(angularVelocity * dt)
-    rotation.normalize()
-    check(rotation.isFinite) { "Invalid rotation by $angularVelocity * $dt" }
+    rotationY = posMod(rotationY + angularVelocity * dt, TAUf)
+
+    val curr = route[routeIndex]
+    curr.getRotation(routeIndexF, rotation)
+        .rotateY(rotationY - rotation.getEulerAngleYXZvY())
+
+    position.fma(dt, velocity)
 
     updateDirections()
 
-    position.fma(dt.toDouble(), velocity)
+    // curve may be curved inwards,
+    //  so convert coordinates to route-local, calculate y, and then convert back
+    curr.snapPositionToSurface(routeIndexF.toDouble(), position)
 }

@@ -26,13 +26,12 @@ class TrafficBuilderControls(sceneView: SceneView, val network: Network) :
         super.fill(pipeline)
 
         // todo draw active points
-        // todo draw potential street
 
         drawPotentialStreet()
 
         // draw existing streets
         for (lane in network.lanes) {
-            drawLine(lane, 0.0, 0.0)
+            drawLine(lane)
         }
     }
 
@@ -64,18 +63,19 @@ class TrafficBuilderControls(sceneView: SceneView, val network: Network) :
         if (numPoints < 2) return
         if (numPoints == 2) builder.position0.mix(builder.position1, 2.0, builder.position2)
         for (lane in builder.createStreet().lanes) {
-            drawLine(lane, 0.0, 0.0)
+            drawLine(lane)
         }
     }
 
-    fun drawLine(lane: Lane, x: Double, y: Double) {
+    fun drawLine(lane: Lane) {
         // draw bezier shape
         val n = 10
+        val positions = List(n + 1) { index ->
+            lane.getPosition(index.toDouble() / n, Vector3d())
+        }
         for (i in 0 until n) {
-            val f0 = (i + 0.0) / n
-            val f1 = (i + 1.0) / n
-            val p0 = lane.getPosition(f0, x, y, Vector3d())
-            val p1 = lane.getPosition(f1, x, y, Vector3d())
+            val p0 = positions[i]
+            val p1 = positions[i + 1]
             drawLine(p0, p1)
         }
     }

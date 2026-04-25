@@ -1,6 +1,5 @@
 package me.anno.traffic.utils
 
-import me.anno.utils.types.Floats.f2
 import me.anno.utils.types.Floats.f2s
 import org.joml.Quaternionf
 import org.joml.Vector

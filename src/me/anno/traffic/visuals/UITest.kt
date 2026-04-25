@@ -40,13 +40,13 @@ fun main() {
     val n = 5
     val builder = StreetBuilder(network)
 
-    val outer0 = Vector3d(110.0, 1.0, -100.0)
+    val outer0 = Vector3d(110.0, 2.0, -100.0)
     val streets = ArrayList<Street>()
     for (i in 0 until n) {
         val angle = i * TAU / n
 
-        builder.position0.set(30.0, 1.0, 0.0).rotateY(angle)
-        builder.position1.set(110.0, 1.0, 0.0).rotateY(angle)
+        builder.position0.set(30.0, 20.0, 0.0).rotateY(angle)
+        builder.position1.set(110.0, 10.0, 0.0).rotateY(angle)
         builder.position2.set(outer0).rotateY(angle)
 
         val street = builder.placeStreet()

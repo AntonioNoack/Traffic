@@ -18,34 +18,21 @@ fun Vehicle.applyMindfulDriving(dt: Float) {
     val vF = velocity.dot(forward)
     val vR = velocity.dot(right)
 
-    applyRollingVelocity(targetVelocity, vR, vF, dt)
+    applyRollingVelocity(targetVelocity, vR, dt)
     applySteering(targetVelocity, vR, vF, dt)
 
     applyReversingPrevention(vF)
 }
 
-
 private fun Vehicle.computeTargetVelocity(): Vector3f {
     val curr = route.getOrNull(routeIndex) ?: return Vector3f()
 
     val nextT = curr.getClosestT(position, routeIndexF)
-    val didAdvance = nextT > 1f && routeIndex + 1 < route.size
     val next = route.getOrNull(routeIndex + 1)
     val canEnterNextLane = curr.mayEnterNextLane(next)
+    val didAdvance = nextT > 1f && routeIndex + 1 < route.size && canEnterNextLane
 
-    val cs = curr.crossingSection
-    if (didAdvance && canEnterNextLane &&
-        cs != null && cs.mayStopOnSection() &&
-        curr.mayEnterNextLane(next)
-    ) {
-        setCrossing(cs)
-    } else if (nextT > 0.9f) {
-        // far enough on segment -> clear our claim
-        setCrossing(null)
-    }
-
-    val updatedRouteIndex = if (didAdvance && canEnterNextLane) routeIndex + 1 else routeIndex
-    val updatedRouteIndexF = if (didAdvance && canEnterNextLane) nextT - 1f else min(nextT, 1f)
+    updateCrossing(curr, next, nextT, didAdvance)
 
     // Target look-ahead position for stable guidance
     val pTarget = predictRoutePositionPlusTime(this, 1f, minVelocity = 1f)
@@ -65,10 +52,30 @@ private fun Vehicle.computeTargetVelocity(): Vector3f {
 
     guidance.mul(desiredSpeed)
 
-    routeIndex = updatedRouteIndex
-    routeIndexF = updatedRouteIndexF
+    updateRouteIndices(nextT, didAdvance)
 
     return guidance
+}
+
+fun Vehicle.updateRouteIndices(nextT: Float, didAdvance: Boolean) {
+    if (didAdvance) routeIndex++
+    routeIndexF = if (didAdvance) nextT - 1f else min(nextT, 1f)
+}
+
+fun Vehicle.updateCrossing(
+    curr: Lane, next: Lane?, nextT: Float,
+    didAdvance: Boolean,
+) {
+    val cs = curr.crossingSection
+    if (didAdvance &&
+        cs != null && cs.mayStopOnSection() &&
+        curr.mayEnterNextLane(next)
+    ) {
+        setCrossing(cs)
+    } else if (nextT > 0.9f) {
+        // far enough on segment -> clear our claim
+        setCrossing(null)
+    }
 }
 
 private fun Vehicle.stopAtSignals(
@@ -95,13 +102,13 @@ fun Vehicle.estimateStoppingDistance(speed: Float): Float {
     val stoppingTime = speed / acceleration // a = v*t
     return 0.5f * acceleration * sq(stoppingTime) // s = a/2 * t²
     */
-    val acceleration = maxDeceleration
-    return 0.5f * sq(speed) / acceleration
+    val effectiveDeceleration = max(0.1f, maxDeceleration - computeSlopeAcceleration())
+    return 0.5f * sq(speed) / effectiveDeceleration
 }
 
 fun Vehicle.estimateStoppingTime(speed: Float): Float {
-    val acceleration = maxDeceleration
-    return speed / acceleration // a = v*t
+    val effectiveDeceleration = max(0.1f, maxDeceleration - computeSlopeAcceleration())
+    return speed / effectiveDeceleration // a = v*t
 }
 
 private fun Vehicle.followOtherVehicles(desiredSpeed: Float): Float {
@@ -186,25 +193,52 @@ private fun adjustDesiredSpeed(
 }
 
 
-private fun Vehicle.applyRollingVelocity(
-    targetVelocity: Vector3f,
-    vR: Float, vF: Float, dt: Float,
-) {
+private fun Vehicle.applyRollingVelocity(targetVelocity: Vector3f, vR: Float, dt: Float) {
+    applyLongitudinalControl(targetVelocity, dt)
+    applyLateralResistance(vR, dt)
+}
+
+private fun Vehicle.applyLongitudinalControl(targetVelocity: Vector3f, dt: Float) {
+
     // todo implement gears and shifting time
-    // 1. Longitudinal control
     val targetDir = if (targetVelocity.lengthSquared() > 1e-6f)
         Vector3f(targetVelocity).normalize()
     else forward
 
-    val speedErr = targetVelocity.length() - velocity.dot(targetDir)
-    val accel = clamp(speedErr / dt, -maxDeceleration, maxAcceleration)
+    val actualVelocity = velocity.dot(targetDir)
+    val requestedVelocity = targetVelocity.length() - actualVelocity
 
-    velocity.fma(accel * dt, targetDir)
+    // base acceleration request
+    var acceleration = requestedVelocity / dt + computeSlopeAcceleration()
 
-    // 2. Lateral resistance (Tires gripping)
+    // clamp with asymmetric limits (affected by slope)
+    val effectiveAcceleration = maxAcceleration * (1f - max(0f, -forward.y) * 0.7f)
+    val effectiveDeceleration = maxDeceleration * (1f - max(0f, forward.y) * 0.5f)
+
+    acceleration = clamp(acceleration, -effectiveDeceleration, effectiveAcceleration)
+
+    velocity.fma(acceleration * dt, targetDir)
+
+    // prevent run-away by internal & air friction
+    if (velocity.length() > maxVelocity * 1.3f) {
+        velocity.mul(exp(-dt))
+    }
+}
+
+private fun Vehicle.applyLateralResistance(vR: Float, dt: Float) {
+    // Lateral resistance (Tires gripping)
     val lateralFriction = 8f // tune 5–15
     val lateralAccel = -vR * lateralFriction
     velocity.fma(lateralAccel * dt, right)
+}
+
+private fun Vehicle.computeSlopeAcceleration(): Float {
+    // Project forward onto Y axis -> gives sin(theta)
+    val slope = forward.y // already normalized direction
+
+    // gravity component along forward axis
+    // negative: uphill (slows you), positive: downhill (pushes you)
+    return -9.81f * slope
 }
 
 private fun Vehicle.applySteering(

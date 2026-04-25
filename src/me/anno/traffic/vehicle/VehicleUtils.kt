@@ -1,12 +1,12 @@
 package me.anno.traffic.vehicle
 
-import me.anno.maths.Maths.PIf
 import me.anno.traffic.Lane
 import me.anno.traffic.Vehicle
 
 fun Vehicle.setOn(lane: Lane, t: Float) {
     lane.getPosition(t.toDouble(), position)
-    lane.getRotation(t, rotation).rotateY(PIf) // todo why is this +180° necessary???
+    lane.getRotation(t, rotation)
+    rotationY = rotation.getEulerAngleYXZvY()
     updateDirections()
 
     route.clear()

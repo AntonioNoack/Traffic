@@ -17,9 +17,10 @@ class Vehicle {
 
     val id = nextId.incrementAndGet()
 
-    var route = ArrayList<Lane>()
+    val route = ArrayList<Lane>()
     var routeIndex = 0
     var routeIndexF = 0f
+    var addedLaneToRoute = false
 
     var linkToEngine: VehicleLink? = null
     val isTrailer get() = linkToEngine != null
@@ -33,6 +34,7 @@ class Vehicle {
 
     val position = Vector3d()
     val rotation = Quaternionf()
+    var rotationY = 0f
 
     val velocity = Vector3f()
     var angularVelocity = 0f

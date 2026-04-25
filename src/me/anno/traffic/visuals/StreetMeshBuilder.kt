@@ -17,6 +17,19 @@ import org.joml.Vector3d
 
 object StreetMeshBuilder {
 
+    private val profile = SplineProfile(
+        listOf(
+            Vector2f(-3f, -1f),
+            Vector2f(-2f, 0f),
+            Vector2f(+2f, 0f),
+            Vector2f(+3f, -1f),
+        ).map { it * 0.8f }, FloatArrayList(
+            floatArrayOf(
+                -1f, -0.2f, 0.2f, +1f
+            )
+        ), null, false
+    )
+
     fun addStreetMesh(street: Street, entity: Entity) {
         val fixMaterial = Material().apply { cullMode = CullMode.BOTH }
         entity.add(MeshComponent(createStreetMesh(street), fixMaterial))
@@ -31,23 +44,11 @@ object StreetMeshBuilder {
     }
 
     fun createLaneMesh(lane: Lane): Mesh {
-        val profile = SplineProfile(
-            listOf(
-                Vector2f(-3f, -1f),
-                Vector2f(-2f, 0f),
-                Vector2f(+2f, 0f),
-                Vector2f(+3f, -1f),
-            ).map { it * 0.8f }, FloatArrayList(
-                floatArrayOf(
-                    -1f, -0.2f, 0.2f, +1f
-                )
-            ), null, false
-        )
         val n = 10
         val splinePoints = List(2 * n) { pointIndex ->
             val t = pointIndex.shr(1) / (n - 1.0)
             val lrx = pointIndex.and(1) * 2.0 - 1.0
-            lane.getPosition(t, lrx, 0.0, Vector3d())
+            lane.getPosition(t, -lrx, 0.0, Vector3d())
         }
         return SplineMesh.generateSplineMesh(
             Mesh(), profile, false, true, true, true,

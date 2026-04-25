@@ -8,6 +8,7 @@ import me.anno.traffic.Network
 import me.anno.traffic.Street
 import org.joml.Quaternionf
 import org.joml.Vector3d
+import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -25,10 +26,17 @@ class StreetBuilder(val network: Network) {
         // calculate ideal position
         val angle0 = position0.angleYTo(position1)
         val angle1 = position1.angleYTo(position2)
-        var angle = when (i) {
+        var angleY = when (i) {
             0 -> angle0
             1 -> mixAngle(angle0, angle1, 0.5)
             2 -> angle1
+            else -> throw IllegalStateException()
+        }
+
+        var angleX = when (i) {
+            0 -> atan2(position1.y - position0.y, position1.distance(position0))
+            1 -> atan2(position2.y - position0.y, position2.distance(position0))
+            2 -> atan2(position2.y - position1.y, position2.distance(position1))
             else -> throw IllegalStateException()
         }
 
@@ -40,13 +48,17 @@ class StreetBuilder(val network: Network) {
         }
 
         val idealPosition = Vector3d(base)
-            .add(cos(angle) * jr, 0.0, -sin(angle) * jr)
+            .add(cos(angleY) * jr, 0.0, -sin(angleY) * jr)
         val point0 = network.getPoint(idealPosition, laneWidth * 0.5)
         if (point0 != null) return point0
 
-        if (flip) angle += PIf
+        if (!flip) {
+            angleY += PIf
+            angleX = -angleX
+        }
 
-        val point1 = LanePoint(idealPosition, Quaternionf().rotateY(angle.toFloat()), angle, laneWidth * 0.5)
+        val rot = Quaternionf().rotateYXZ(angleY.toFloat(), angleX.toFloat(), 0f)
+        val point1 = LanePoint(idealPosition, rot, angleY, laneWidth * 0.5)
         network.addPoint(point1)
         return point1
     }
