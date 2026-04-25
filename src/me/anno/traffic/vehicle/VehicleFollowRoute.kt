@@ -9,7 +9,6 @@ import me.anno.traffic.CrossingSection
 import me.anno.traffic.Lane
 import me.anno.traffic.Vehicle
 import me.anno.traffic.utils.addUnique
-import org.joml.Quaternionf
 import org.joml.Vector3f
 import kotlin.math.*
 
@@ -274,7 +273,6 @@ private fun Vehicle.applyReversingPrevention(vF: Float) {
         velocity.fma(-vF, forward)
     }
 }
-
 
 private fun Vector3f.fmaDistance(dot: Float, forward: Vector3f): Float {
     val x = x - dot * forward.x

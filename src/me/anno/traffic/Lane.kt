@@ -13,6 +13,7 @@ import kotlin.math.sqrt
 
 data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) {
 
+    var supportedVehicleTypes = 0
     var crossingSection: CrossingSection? = null
     var maxSpeed = computeMaxSpeed()
 
