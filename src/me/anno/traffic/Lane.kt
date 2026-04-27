@@ -50,15 +50,9 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         val pos0 = getPosition(t, Vector3d())
         val rot0 = getRotation(t.toFloat(), Quaternionf())
 
-        // global -> local
-        dst.sub(pos0)
-        dst.rotateInv(rot0)
-
-        dst.y = 0.0
-
-        // local -> global
-        dst.rotate(rot0)
-        dst.add(pos0)
+        val upDir = Vector3f(0f, 1f, 0f).rotate(rot0)
+        val unitsBelowGround = upDir.dot(pos0) - upDir.dot(dst)
+        dst.fma(unitsBelowGround, upDir)
 
         return dst
     }
