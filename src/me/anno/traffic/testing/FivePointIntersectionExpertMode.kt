@@ -1,14 +1,15 @@
-package me.anno.traffic.visuals
+package me.anno.traffic.testing
 
 import me.anno.ecs.Entity
 import me.anno.maths.Maths.posMod
 import me.anno.traffic.Network
 import me.anno.traffic.Street
+import me.anno.traffic.editor.StreetBuilder
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
 import org.joml.Vector3d
 import java.lang.Math.TAU
 
-fun buildFivePointIntersection(network: Network, scene: Entity): List<Street> {
+fun buildFivePointIntersectionInExpertMode(network: Network, scene: Entity): List<Street> {
 
     val raise = 20.0
 
@@ -24,7 +25,7 @@ fun buildFivePointIntersection(network: Network, scene: Entity): List<Street> {
         builder.position1.set(110.0, raise * 0.5 + 1.0, 0.0).rotateY(angle)
         builder.position2.set(outer0).rotateY(angle)
 
-        val street = builder.placeStreet()
+        val street = builder.placeStreetInExpertMode()
         addStreetMesh(street, scene)
         streets.add(street)
     }
@@ -41,7 +42,7 @@ fun buildFivePointIntersection(network: Network, scene: Entity): List<Street> {
 
         builder.extrudeCenter(1.0)
 
-        val street = builder.placeStreet()
+        val street = builder.placeStreetInExpertMode()
         addStreetMesh(street, scene)
         streets.add(street)
     }

@@ -19,6 +19,10 @@ import org.joml.Vector3d
 
 class Network : System(), OnUpdate {
 
+    companion object {
+        val streetPointDistance = 5.0
+    }
+
     val vehicles = ArrayList<Vehicle>()
     val crossings = ArrayList<Crossing>()
     val lanes = ArrayList<Lane>()
@@ -143,6 +147,8 @@ class Network : System(), OnUpdate {
 
     fun addStreet(street: Street) {
         streets.add(street)
+        street.from.streets.add(street)
+        street.to.streets.add(street)
         for (lane in street.lanes) {
             addLane(lane)
         }
@@ -156,6 +162,8 @@ class Network : System(), OnUpdate {
 
     fun removeStreet(street: Street) {
         streets.remove(street)
+        street.from.streets.remove(street)
+        street.to.streets.remove(street)
         for (lane in street.lanes) {
             removeLane(lane)
         }
@@ -183,7 +191,7 @@ class Network : System(), OnUpdate {
         streetPointTree.remove(point)
     }
 
-    fun getOrPutPoint(position: Vector3d, maxDistance: Double): StreetPoint {
+    fun getOrPutPoint(position: Vector3d, maxDistance: Double = streetPointDistance): StreetPoint {
         var point = getPoint(position, maxDistance)
         if (point != null) return point
 
@@ -192,7 +200,7 @@ class Network : System(), OnUpdate {
         return point
     }
 
-    fun getPoint(position: Vector3d, maxDistance: Double): StreetPoint? {
+    fun getPoint(position: Vector3d, maxDistance: Double = streetPointDistance): StreetPoint? {
         var bestPoint: StreetPoint? = null
         var bestDistanceSq = sq(maxDistance)
         streetPointTree.query(

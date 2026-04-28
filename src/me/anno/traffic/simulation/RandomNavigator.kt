@@ -1,10 +1,13 @@
-package me.anno.traffic.visuals
+package me.anno.traffic.simulation
 
 import me.anno.ecs.Component
 import me.anno.ecs.systems.OnUpdate
 import me.anno.traffic.Network
 import me.anno.traffic.Vehicle
 
+/**
+ * the easiest navigation strategy: vehicles drive wherever they like
+ * */
 class RandomNavigator(val network: Network) : Component(), OnUpdate {
 
     companion object {
@@ -40,7 +43,6 @@ class RandomNavigator(val network: Network) : Component(), OnUpdate {
             } else if (vehicle.routeIndex + 3 > vehicle.route.size) {
                 extendRoute(vehicle)
             }
-
         }
     }
 }

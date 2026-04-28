@@ -10,6 +10,7 @@ import me.anno.gpu.pipeline.Pipeline
 import me.anno.input.Key
 import me.anno.traffic.Lane
 import me.anno.traffic.Network
+import me.anno.traffic.editor.StreetBuilder
 import me.anno.ui.UIColors
 import org.joml.Vector3d
 
@@ -62,7 +63,7 @@ class TrafficBuilderControls(sceneView: SceneView, val network: Network) :
 
         if (numPoints < 2) return
         if (numPoints == 2) builder.position0.mix(builder.position1, 2.0, builder.position2)
-        for (lane in builder.createStreet().lanes) {
+        for (lane in builder.createStreetInExpertMode().lanes) {
             drawLine(lane)
         }
     }
@@ -98,7 +99,7 @@ class TrafficBuilderControls(sceneView: SceneView, val network: Network) :
 
                 dst.set(query.result.positionWS)
                 if (state == TrafficBuilderState.SECOND_POINT) {
-                    builder.placeStreet()
+                    builder.placeStreetInExpertMode()
                 }
 
                 state = when (state) {

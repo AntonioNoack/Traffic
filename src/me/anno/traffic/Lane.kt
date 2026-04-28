@@ -4,10 +4,12 @@ import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.pow
 import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
+import me.anno.traffic.utils.SplineMaths.laneLength
+import me.anno.traffic.utils.SplineMaths.lerp3
+import me.anno.traffic.utils.SplineMaths.lerp3Diff
 import org.joml.Quaternionf
 import org.joml.Vector3d
 import org.joml.Vector3f
-import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sqrt
 
@@ -17,14 +19,7 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
     var crossingSection: CrossingSection? = null
     var maxSpeed = computeMaxSpeed()
 
-    val approxLength: Float by lazy {
-        val p0 = from.position
-        val p1 = control.position
-        val p2 = to.position
-        val chord = p0.distance(p2)
-        val net = p0.distance(p1) + p1.distance(p2)
-        (chord + net).toFloat() * 0.5f
-    }
+    val approxLength = laneLength(from.position, control.position, to.position)
 
     fun mayEnterNextLane(nextLane: Lane?): Boolean {
         val curr = crossingSection
@@ -35,14 +30,12 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
     }
 
     fun getPosition(t: Double, dst: Vector3d): Vector3d {
-        val f0 = sq(1f - t)
-        val f1 = 2f * (1f - t) * t
-        val f2 = t * t
-
-        return dst.set(0.0)
-            .fma(f0, from.position)
-            .fma(f1, control.position)
-            .fma(f2, to.position)
+        return lerp3(
+            from.position,
+            control.position,
+            to.position,
+            t, dst
+        )
     }
 
     fun snapPositionToSurface(t: Double, dst: Vector3d): Vector3d {
@@ -57,15 +50,8 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         return dst
     }
 
-    fun getDirection(t: Double): Vector3f {
-        val p0 = from.position
-        val p1 = control.position
-        val p2 = to.position
-        return Vector3f(
-            mix(p1.x - p0.x, p2.x - p1.x, t),
-            mix(p1.y - p0.y, p2.y - p1.y, t),
-            mix(p1.z - p0.z, p2.z - p1.z, t),
-        )
+    fun getDirection(t: Double): Vector3d {
+        return lerp3Diff(from.position, control.position, to.position, t, Vector3d())
     }
 
     fun getDirection0(): Vector3f {
@@ -103,16 +89,12 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
     }
 
     fun getRotation(t: Float, dst: Quaternionf): Quaternionf {
-        val f0 = sq(1f - t)
-        val f1 = 2f * (1f - t) * t
-        val f2 = t * t
-        val f01 = f0 + f1
-        if (abs(f01) < 1e-30f) {
-            return dst.set(to.rotation)
-        }
-        return from.rotation
-            .slerp(control.rotation, f1 / f01, dst)
-            .slerp(to.rotation, f2)
+        return lerp3(
+            from.rotation,
+            control.rotation,
+            to.rotation,
+            t, dst
+        )
     }
 
     fun getClosestT(position: Vector3d, routeIndexF: Float): Float {

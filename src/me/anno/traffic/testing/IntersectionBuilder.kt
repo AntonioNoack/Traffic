@@ -1,4 +1,4 @@
-package me.anno.traffic.visuals
+package me.anno.traffic.testing
 
 import me.anno.ecs.Entity
 import me.anno.maths.Maths
@@ -7,9 +7,10 @@ import me.anno.maths.Maths.mixAngle
 import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
 import me.anno.traffic.*
+import me.anno.traffic.editor.StreetBuilder
 import me.anno.traffic.vehicle.attachTrailer
 import me.anno.traffic.vehicle.setOn
-import me.anno.traffic.visuals.RandomNavigator.Companion.extendRoute
+import me.anno.traffic.simulation.RandomNavigator.Companion.extendRoute
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
 import org.joml.Quaternionf
 import org.joml.Vector3d

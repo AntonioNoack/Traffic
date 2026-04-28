@@ -22,7 +22,7 @@ fun predictRoutePositionPlusDistance(vehicle: Vehicle, distance: Float): Vector3
         val laneRemaining = (1f - routeT) * laneLength
         if (remainingDistance <= laneRemaining || routeIndex >= vehicle.route.lastIndex) {
             val targetT = clamp(routeT + remainingDistance / laneLength)
-            return lane.getPosition(targetT.toDouble(), 0.0, 0.0, Vector3d())
+            return lane.getPosition(targetT.toDouble(), Vector3d())
         }
 
         remainingDistance -= laneRemaining

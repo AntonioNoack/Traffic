@@ -1,4 +1,4 @@
-package me.anno.traffic.visuals
+package me.anno.traffic.testing
 
 import me.anno.ecs.Entity
 import me.anno.ecs.components.mesh.MeshComponent
@@ -8,6 +8,9 @@ import me.anno.engine.DefaultAssets
 import me.anno.engine.OfficialExtensions
 import me.anno.engine.ui.render.SceneView.Companion.testSceneWithUI
 import me.anno.traffic.Network
+import me.anno.traffic.simulation.RandomNavigator
+import me.anno.traffic.visuals.TrafficBuilderControls
+import me.anno.traffic.visuals.VehicleRenderer
 import me.anno.utils.OS.res
 
 /**
@@ -29,12 +32,11 @@ fun main() {
 
     Systems.registerSystem(network)
 
-    val streets = buildFivePointIntersection(network, scene)
-
     val carRef = res.getChild("meshes/SportsCar2.fbx/Scene.json")
     scene.add(VehicleRenderer(carRef, network))
     scene.add(RandomNavigator(network))
 
+    val streets = buildFivePointIntersectionInPlannerMode(network, scene)
     spawnVehicles(network, streets)
 
     testSceneWithUI("Network Builder", scene) { sceneView ->
