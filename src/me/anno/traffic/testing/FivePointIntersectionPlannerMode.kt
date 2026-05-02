@@ -14,11 +14,11 @@ import java.lang.Math.TAU
 import kotlin.math.max
 import kotlin.math.min
 
-// todo this looks very wrong :(
+// todo this looks pretty wrong :(
 
 fun buildFivePointIntersectionInPlannerMode(network: Network, scene: Entity): List<Street> {
 
-    val raise = 20.0
+    val raise = 0.0
 
     val n = 5
     val builder = StreetBuilder(network)
@@ -83,7 +83,7 @@ fun createMeshesByNetwork(network: Network, scene: Entity) {
 fun createCrossingMesh(streetPoint: StreetPoint, network: Network, scene: Entity) {
     val builder = StreetBuilder(network)
     val center = streetPoint.position
-    val radius = getIntersectionRadius(streetPoint) * 1.1 + 1.0
+    val radius = getIntersectionRadius(streetPoint) * 1.5
     createIntersection(network, scene, streetPoint.streets, center, radius, builder)
 }
 
@@ -102,9 +102,8 @@ fun recalculateLanes(street: Street, network: Network) {
     val builder = StreetBuilder(network)
     builder.position0.set(street.from.position)
     builder.position1.set(street.control.position)
-    builder.position2.set(street.from.position)
-    val street1 = builder.createStreetInExpertMode(insetFromT, insetToT)
-    street.lanes.addAll(street1.lanes)
+    builder.position2.set(street.to.position)
+    builder.createStreetInExpertMode(insetFromT, insetToT, street)
     for (lane in street.lanes) {
         network.addLane(lane)
     }
@@ -112,5 +111,5 @@ fun recalculateLanes(street: Street, network: Network) {
 
 fun getIntersectionRadius(streetPoint: StreetPoint): Float {
     val totalNumLanes = streetPoint.streets.sumOf { it.streetDesign.size }
-    return totalNumLanes.toFloat()
+    return totalNumLanes * 1.5f
 }

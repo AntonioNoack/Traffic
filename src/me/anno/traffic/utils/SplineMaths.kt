@@ -52,4 +52,43 @@ object SplineMaths {
             Maths.mix(p1.z - p0.z, p2.z - p1.z, t),
         )
     }
+
+    fun computeControlPoint(
+        pos0: Vector3d, rot0: Quaternionf,
+        pos2: Vector3d, rot2: Quaternionf
+    ): Vector3d {
+
+        val d0 = Vector3d(0f, 0f, 1f).rotate(rot0).normalize()
+        val d2 = Vector3d(0f, 0f, 1f).rotate(rot2).normalize()
+
+        val a00 = d0.dot(d0)
+        val a01 = d0.dot(d2)
+        val a11 = d2.dot(d2)
+
+        val b0 = 2.0 * (d0.dot(pos2) - d0.dot(pos0))
+        val b1 = 2.0 * (d2.dot(pos2) - d2.dot(pos0))
+
+        val det = a00 * a11 - a01 * a01
+
+        // parallel case / degenerate
+        if (abs(det) < 1e-8) {
+            val dir = Vector3d(d0).normalize()
+
+            val delta = Vector3d(pos2).sub(pos0)
+            val lengthAlong = delta.dot(dir)
+
+            // Place control point halfway along the line
+            return Vector3d(pos0).fma(0.5 * lengthAlong, dir)
+        }
+
+        // curve
+        val lambda0 = (b0 * a11 - b1 * a01) / det
+        val lambda2 = (-b0 * a01 + b1 * a00) / det
+
+        val p1a = Vector3d(pos0).fma(0.5 * lambda0, d0)
+        val p1b = Vector3d(pos2).fma(-0.5 * lambda2, d2)
+
+        // Average improves numerical stability
+        return p1a.add(p1b).mul(0.5)
+    }
 }

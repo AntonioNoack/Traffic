@@ -2,6 +2,7 @@ package me.anno.traffic.editor
 
 import me.anno.maths.Maths
 import me.anno.traffic.*
+import me.anno.traffic.utils.SplineMaths.computeControlPoint
 import me.anno.traffic.utils.SplineMaths.lerp3
 import org.joml.Quaternionf
 import org.joml.Vector3d
@@ -15,27 +16,31 @@ class StreetBuilder(val network: Network) {
 
     val laneWidth = 4.0
 
-    fun getPoint(f: Float, j: Int, n: Int, flip: Boolean): LanePoint {
-        val jr = (j - (n - 1) * 0.5) * laneWidth
-        return getPoint(f, jr, flip)
+    fun getPoint(i: Int, dxi: Int, n: Int, flip: Boolean): LanePoint {
+        val jr = (dxi - (n - 1) * 0.5) * laneWidth
+        return getPoint(i, jr, flip)
     }
 
-    fun getPoint(f: Float, jr: Double, flip: Boolean): LanePoint {
+    fun getPoint(t: Double, dx: Double, flip: Boolean): LanePoint {
 
         // calculate ideal position and rotation
-        val p0 = lerp3(position0, position1, position2, max(f.toDouble() - 0.01, 0.0), Vector3d())
-        val p1 = lerp3(position0, position1, position2, min(f.toDouble() + 0.01, 1.0), Vector3d())
+        val p0 = lerp3(position0, position1, position2, max(t - 0.01, 0.0), Vector3d())
+        val p1 = lerp3(position0, position1, position2, min(t + 0.01, 1.0), Vector3d())
         var angleY = p0.angleYTo(p1)
+
+        // todo I can't believe these y-angles...
+        //  -> debug the points along the lines...
+
+        // todo why are the streets twisted sometimes???
 
         var angleX = lerp3(
             atan2(position1.y - position0.y, position1.distance(position0)),
             atan2(position2.y - position0.y, position2.distance(position0)),
-            atan2(position2.y - position1.y, position2.distance(position1)),
-            f.toDouble()
+            atan2(position2.y - position1.y, position2.distance(position1)), t
         )
 
-        val position = lerp3(position0, position1, position2, f.toDouble(), Vector3d())
-            .add(cos(angleY) * jr, 0.0, -sin(angleY) * jr)
+        val position = lerp3(position0, position1, position2, t, Vector3d())
+            .add(cos(angleY) * dx, 0.0, -sin(angleY) * dx)
 
         if (!flip) {
             angleY += Maths.PIf
@@ -44,6 +49,10 @@ class StreetBuilder(val network: Network) {
 
         val rotation = Quaternionf().rotateYXZ(angleY.toFloat(), angleX.toFloat(), 0f)
         return LanePoint(position, rotation, angleY, laneWidth * 0.5)
+    }
+
+    fun getPoint(i: Int, dx: Double, flip: Boolean): LanePoint {
+        return getPoint(i * 0.5, dx, flip)
     }
 
     fun getPoint(i: Int): StreetPoint {
@@ -58,23 +67,47 @@ class StreetBuilder(val network: Network) {
         return point
     }
 
-    fun createStreetInExpertMode() =
-        createStreetInExpertMode(0f, 1f)
+    fun createStreetInExpertMode(street: Street) =
+        createStreetInExpertMode(0f, 1f, street)
 
-    fun createStreetInExpertMode(t0: Float, t1: Float): Street {
+    fun createStreetInExpertMode(t0: Float, t1: Float, street: Street): Street {
+
+        if (t0 > 0f || t1 < 1f) {
+
+            val p0 = Vector3d(position0)
+            val p1 = Vector3d(position1)
+            val p2 = Vector3d(position2)
+
+            val fromPoint = getPoint(t0.toDouble(), 0.0, false)
+            val toPoint = getPoint(t1.toDouble(), 0.0, false)
+            val newControl =
+                computeControlPoint(fromPoint.position, fromPoint.rotation, toPoint.position, toPoint.rotation)
+
+            position0.set(fromPoint.position)
+            position1.set(newControl)
+            position2.set(toPoint.position)
+
+            createStreetInExpertMode(0f, 1f, street)
+
+            position0.set(p0)
+            position1.set(p1)
+            position2.set(p2)
+
+            return street
+        }
+
         val numLanes = 6
         val numReversed = 3
         val fromList = List(numLanes) { laneId ->
-            getPoint(t0, laneId, numLanes, flip = laneId < numReversed)
+            getPoint(0, laneId, numLanes, flip = laneId < numReversed)
         }
         val controlList = List(numLanes) { laneId ->
-            getPoint(0.5f, laneId, numLanes, flip = laneId < numReversed)
+            getPoint(1, laneId, numLanes, flip = laneId < numReversed)
         }
         val toList = List(numLanes) { laneId ->
-            getPoint(t1, laneId, numLanes, flip = laneId < numReversed)
+            getPoint(2, laneId, numLanes, flip = laneId < numReversed)
         }
 
-        val street = createStreetInPlannerMode()
         for (laneId in 0 until numLanes) {
             street.lanes += if (laneId < numReversed) {
                 Lane(toList[laneId], controlList[laneId], fromList[laneId])
@@ -90,7 +123,8 @@ class StreetBuilder(val network: Network) {
     }
 
     fun placeStreetInExpertMode(): Street {
-        val street = createStreetInExpertMode()
+        val street = createStreetInPlannerMode()
+        createStreetInExpertMode(street)
         network.addStreet(street)
         return street
     }
@@ -108,5 +142,6 @@ class StreetBuilder(val network: Network) {
         val dz = position0.z + position2.z - 2.0 * position1.z
         position1.add(d * dx, d * dy, d * dz)
     }
+
 
 }

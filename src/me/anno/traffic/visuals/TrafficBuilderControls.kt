@@ -63,7 +63,7 @@ class TrafficBuilderControls(sceneView: SceneView, val network: Network) :
 
         if (numPoints < 2) return
         if (numPoints == 2) builder.position0.mix(builder.position1, 2.0, builder.position2)
-        for (lane in builder.createStreetInExpertMode().lanes) {
+        for (lane in builder.createStreetInExpertMode(builder.createStreetInPlannerMode()).lanes) {
             drawLine(lane)
         }
     }
