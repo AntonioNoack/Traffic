@@ -52,7 +52,7 @@ object StreetMeshBuilder {
         val splinePoints = List(2 * n) { pointIndex ->
             val t = pointIndex.shr(1) / (n - 1.0)
             val lrx = pointIndex.and(1) * 2.0 - 1.0
-            lane.getPosition(t, -lrx, 0.0, Vector3d())
+            lane.getPosition(t, -lrx, Vector3d())
         }
         return SplineMesh.generateSplineMesh(
             Mesh(), profile, false, true, true, true,

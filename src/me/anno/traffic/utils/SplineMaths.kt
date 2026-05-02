@@ -38,7 +38,7 @@ object SplineMaths {
         val f2 = t * t
         val f01 = f0 + f1
         if (abs(f01) < 1e-30f) {
-            return dst.set(p0)
+            return dst.set(p2)
         }
         return p0
             .slerp(p1, f1 / f01, dst)

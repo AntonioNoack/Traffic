@@ -2,7 +2,6 @@ package me.anno.traffic
 
 import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.pow
-import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
 import me.anno.traffic.utils.SplineMaths.laneLength
 import me.anno.traffic.utils.SplineMaths.lerp3
@@ -74,18 +73,13 @@ data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) 
         )
     }
 
-    fun getPosition(t: Double, x: Double, y: Double, dst: Vector3d): Vector3d {
-        val f0 = sq(1f - t)
-        val f1 = 2f * (1f - t) * t
-        val f2 = t * t
+    fun getPosition(t: Double, xf: Double, dst: Vector3d): Vector3d {
+        getPosition(t, dst)
+        val (x, y, z) = dst
 
-        dst.set(x, y, 0.0)
+        return dst.set(xf, 0.0, 0.0)
             .rotate(getRotation(t.toFloat(), Quaternionf()))
-
-        return dst
-            .fma(f0, from.position)
-            .fma(f1, control.position)
-            .fma(f2, to.position)
+            .add(x, y, z)
     }
 
     fun getRotation(t: Float, dst: Quaternionf): Quaternionf {
