@@ -3,6 +3,8 @@ package me.anno.traffic.testing
 import me.anno.ecs.Entity
 import me.anno.ecs.components.mesh.Mesh
 import me.anno.ecs.components.mesh.MeshComponent
+import me.anno.maths.Maths.PIf
+import me.anno.maths.Maths.clamp
 import me.anno.maths.Maths.posMod
 import me.anno.traffic.Network
 import me.anno.traffic.Street
@@ -51,6 +53,8 @@ fun buildFivePointIntersectionInPlannerMode(network: Network, scene: Entity): Li
         builder.position1.set(outerPos0).rotateY(angle1)
         builder.position2.set(outer[posMod(i + 1, n)].position)
 
+        builder.extrudeCenter(1.0)
+
         streets.add(builder.placeStreetInPlannerMode())
     }
 
@@ -82,7 +86,7 @@ fun createCrossingMesh(streetPoint: StreetPoint, network: Network, scene: Entity
     val builder = StreetBuilder(network)
     val center = streetPoint.position
     val radius = getIntersectionRadius(streetPoint) * 1.5
-    createIntersection(network, scene, streetPoint.streets, center, radius, builder)
+    createIntersection(network, scene, streetPoint.streets, streetPoint, center, radius, builder)
 }
 
 fun createStreetMesh(street: Street): Mesh {
@@ -108,6 +112,26 @@ fun recalculateLanes(street: Street, network: Network) {
 }
 
 fun getIntersectionRadius(streetPoint: StreetPoint): Float {
-    val totalNumLanes = streetPoint.streets.sumOf { it.streetDesign.size }
-    return totalNumLanes * 1.5f
+    if (streetPoint.streets.isEmpty()) return 1f
+
+    val maxNumLanes = streetPoint.streets.maxOf { it.streetDesign.size }
+    // intersection must be made larger/shifted, if two angles are close
+    val allAngles = streetPoint.streets.flatMap { it.findAngles(streetPoint) }
+    var minAngleDiff = PIf
+    for (i in 1 until allAngles.size) {
+        for (j in 0 until i) {
+            val ai = allAngles[i]
+            val aj = allAngles[j]
+            val diff = absAngleDiff((ai - aj).toDouble()).toFloat()
+            minAngleDiff = min(minAngleDiff, diff)
+        }
+    }
+    return maxNumLanes * 4f * (2f - clamp(minAngleDiff))
+}
+
+fun Street.findAngles(streetPoint: StreetPoint): List<Float> {
+    val result = ArrayList<Float>(2)
+    if (from == streetPoint) result.add(from.position.angleYTo(control.position).toFloat())
+    if (to == streetPoint) result.add(to.position.angleYTo(control.position).toFloat())
+    return result
 }

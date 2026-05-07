@@ -47,24 +47,22 @@ fun buildFivePointIntersectionInExpertMode(network: Network, scene: Entity): Lis
         streets.add(street)
     }
 
+    val center0 = Vector3d(0.0, raise, 0.0)
     createIntersection(
-        network, scene,
-        streets.subList(0, n),
-        Vector3d(0.0, raise, 0.0), 40.0,
-        builder
+        network, scene, streets.subList(0, n),
+        network.getOrPutPoint(center0), center0, 40.0, builder
     )
 
     for (i in 0 until n) {
         val angle = (i + 0.05) * TAU / n
-        val center = Vector3d(outer1)
+        val center1 = Vector3d(outer1)
             .mix(outer0, 0.3)
             .rotateY(angle)
         val j = posMod(i - 1, n)
         createIntersection(
             network, scene,
             listOf(streets[i], streets[i + n], streets[j + n]),
-            center, 50.0,
-            builder
+            network.getOrPutPoint(center1), center1, 50.0, builder
         )
     }
 

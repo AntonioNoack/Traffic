@@ -19,12 +19,13 @@ import kotlin.random.Random
 fun createIntersection(
     network: Network, scene: Entity,
     streets: List<Street>,
+    anchor: StreetPoint,
     center: Vector3d, radius: Double,
     builder: StreetBuilder
 ) {
 
     fun isInside(lp: LanePoint): Boolean {
-        return center.distanceSquared(lp.position) < sq(radius)
+        return lp.streetPoint == anchor
     }
 
     // define all lane-combinations...

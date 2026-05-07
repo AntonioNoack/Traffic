@@ -111,11 +111,21 @@ class StreetBuilder(val network: Network) {
             getPoint(2, laneId, numLanes, flip = laneId < numReversed)
         }
 
+        for (i in 0 until numLanes) {
+            fromList[i].streetPoint = street.from
+            controlList[i].streetPoint = street.control
+            toList[i].streetPoint = street.to
+        }
+
         for (laneId in 0 until numLanes) {
+            val fromI = fromList[laneId]
+            val controlI = controlList[laneId]
+            val toI = toList[laneId]
+
             street.lanes += if (laneId < numReversed) {
-                Lane(toList[laneId], controlList[laneId], fromList[laneId])
+                Lane(toI, controlI, fromI)
             } else {
-                Lane(fromList[laneId], controlList[laneId], toList[laneId])
+                Lane(fromI, controlI, toI)
             }
         }
         return street
