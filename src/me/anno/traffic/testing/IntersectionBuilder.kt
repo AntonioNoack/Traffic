@@ -1,20 +1,20 @@
 package me.anno.traffic.testing
 
 import me.anno.ecs.Entity
-import me.anno.maths.Maths
 import me.anno.maths.Maths.PIf
 import me.anno.maths.Maths.mixAngle
 import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
 import me.anno.traffic.*
 import me.anno.traffic.editor.StreetBuilder
+import me.anno.traffic.simulation.RandomNavigator.Companion.extendRoute
 import me.anno.traffic.vehicle.attachTrailer
 import me.anno.traffic.vehicle.setOn
-import me.anno.traffic.simulation.RandomNavigator.Companion.extendRoute
 import me.anno.traffic.visuals.StreetMeshBuilder.addStreetMesh
 import org.joml.Quaternionf
 import org.joml.Vector3d
 import kotlin.math.atan2
+import kotlin.random.Random
 
 fun createIntersection(
     network: Network, scene: Entity,
@@ -105,16 +105,24 @@ fun createIntersection(
     }
 }
 
-fun spawnVehicles(network: Network, streets: List<Street>) {
-    for (i in streets.indices) {
-        val street = streets[i]
-        for (lane in street.lanes) {
-            val ts = 7
-            for (ti in 0 until ts) {
-                if (Maths.random() < 0.3f) continue
+fun spawnVehicles(network: Network, streets: List<Street>, seed: Long) {
+    val rnd = Random(seed)
+    for (streetIndex in streets.indices) {
+        if (streetIndex != 3) continue
+        val street = streets[streetIndex]
+
+        for (laneIndex in street.lanes.indices) {
+            if (laneIndex >= 1) continue
+            val lane = street.lanes[laneIndex]
+
+            val numCars = (lane.approxLength / 10f).toInt()
+            for (ti in 0 until numCars) {
+                if (false && rnd.nextFloat() < 0.3f) continue
+
+                if (ti < numCars - 1) continue
 
                 val vehicle = Vehicle()
-                val t = (ti + 0.5f) / ts
+                val t = (ti + 0.5f) / numCars
                 vehicle.setOn(lane, t)
 
                 for (i in 0 until 3) {
@@ -125,7 +133,7 @@ fun spawnVehicles(network: Network, streets: List<Street>) {
 
                 var last = vehicle
                 var chance = 0.1f
-                while (Maths.random() < chance) {
+                while (false && rnd.nextFloat() < chance) {
 
                     vehicle.maxAcceleration *= 0.7f
                     vehicle.maxDeceleration *= 0.7f

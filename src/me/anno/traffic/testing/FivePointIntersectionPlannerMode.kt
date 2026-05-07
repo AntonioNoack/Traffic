@@ -51,8 +51,6 @@ fun buildFivePointIntersectionInPlannerMode(network: Network, scene: Entity): Li
         builder.position1.set(outerPos0).rotateY(angle1)
         builder.position2.set(outer[posMod(i + 1, n)].position)
 
-        builder.extrudeCenter(1.0)
-
         streets.add(builder.placeStreetInPlannerMode())
     }
 

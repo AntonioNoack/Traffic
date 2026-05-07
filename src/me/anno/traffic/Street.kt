@@ -1,6 +1,8 @@
 package me.anno.traffic
 
 import me.anno.traffic.utils.SplineMaths.laneLength
+import me.anno.traffic.utils.SplineMaths.lerp3
+import org.joml.Vector3d
 
 /**
  * a structure for quickly editing lanes
@@ -21,4 +23,13 @@ data class Street(
 
     // encoded information about each lane
     var streetDesign: IntArray = defaultStreetDesign
+
+    fun getPosition(t: Double, dst: Vector3d): Vector3d {
+        return lerp3(
+            from.position,
+            control.position,
+            to.position,
+            t, dst
+        )
+    }
 }

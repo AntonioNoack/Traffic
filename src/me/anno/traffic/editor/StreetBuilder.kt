@@ -17,42 +17,43 @@ class StreetBuilder(val network: Network) {
     val laneWidth = 4.0
 
     fun getPoint(i: Int, dxi: Int, n: Int, flip: Boolean): LanePoint {
-        val jr = (dxi - (n - 1) * 0.5) * laneWidth
-        return getPoint(i, jr, flip)
-    }
-
-    fun getPoint(t: Double, dx: Double, flip: Boolean): LanePoint {
+        val dx = (dxi - (n - 1) * 0.5) * laneWidth
 
         // calculate ideal position and rotation
-        val p0 = lerp3(position0, position1, position2, max(t - 0.01, 0.0), Vector3d())
-        val p1 = lerp3(position0, position1, position2, min(t + 0.01, 1.0), Vector3d())
+        val p0 = if (i < 2) position0 else position1
+        val p1 = if (i < 1) position1 else position2
         var angleY = p0.angleYTo(p1)
+        var angleX = atan2(p1.y - p0.y, p1.distance(p0))
 
-        // todo I can't believe these y-angles...
-        //  -> debug the points along the lines...
-
-        // todo why are the streets twisted sometimes???
-
-        var angleX = lerp3(
-            atan2(position1.y - position0.y, position1.distance(position0)),
-            atan2(position2.y - position0.y, position2.distance(position0)),
-            atan2(position2.y - position1.y, position2.distance(position1)), t
-        )
-
-        val position = lerp3(position0, position1, position2, t, Vector3d())
-            .add(cos(angleY) * dx, 0.0, -sin(angleY) * dx)
+        val position = when (i) {
+            0 -> position0
+            1 -> position1
+            else -> position2
+        }.add(cos(angleY) * dx, 0.0, -sin(angleY) * dx, Vector3d())
 
         if (!flip) {
             angleY += Maths.PIf
             angleX = -angleX
         }
 
-        val rotation = Quaternionf().rotateYXZ(angleY.toFloat(), angleX.toFloat(), 0f)
-        return LanePoint(position, rotation, angleY, laneWidth * 0.5)
+        return createLanePoint(position, angleX, angleY)
     }
 
-    fun getPoint(i: Int, dx: Double, flip: Boolean): LanePoint {
-        return getPoint(i * 0.5, dx, flip)
+    fun getPoint(t: Double): LanePoint {
+
+        // calculate ideal position and rotation
+        val p0 = lerp3(position0, position1, position2, max(t - 0.01, 0.0), Vector3d())
+        val p1 = lerp3(position0, position1, position2, min(t + 0.01, 1.0), Vector3d())
+        val angleY = p1.angleYTo(p0)
+        val angleX = atan2(p0.y - p1.y, p1.distance(p0))
+
+        val position = lerp3(position0, position1, position2, t, Vector3d())
+        return createLanePoint(position, angleX, angleY)
+    }
+
+    fun createLanePoint(position: Vector3d, angleX: Double, angleY: Double): LanePoint {
+        val rotation = Quaternionf().rotateYXZ(angleY.toFloat(), angleX.toFloat(), 0f)
+        return LanePoint(position, rotation, angleY, laneWidth * 0.5)
     }
 
     fun getPoint(i: Int): StreetPoint {
@@ -78,10 +79,12 @@ class StreetBuilder(val network: Network) {
             val p1 = Vector3d(position1)
             val p2 = Vector3d(position2)
 
-            val fromPoint = getPoint(t0.toDouble(), 0.0, false)
-            val toPoint = getPoint(t1.toDouble(), 0.0, false)
-            val newControl =
-                computeControlPoint(fromPoint.position, fromPoint.rotation, toPoint.position, toPoint.rotation)
+            val fromPoint = getPoint(t0.toDouble())
+            val toPoint = getPoint(t1.toDouble())
+            val newControl = computeControlPoint(
+                fromPoint.position, fromPoint.rotation,
+                toPoint.position, toPoint.rotation
+            )
 
             position0.set(fromPoint.position)
             position1.set(newControl)
@@ -135,12 +138,12 @@ class StreetBuilder(val network: Network) {
         return street
     }
 
-    fun extrudeCenter(d: Double) {
+    fun extrudeCenter(d: Double, dst: Vector3d = position1) {
         val d = -0.5 * d
-        val dx = position0.x + position2.x - 2.0 * position1.x
-        val dy = position0.y + position2.y - 2.0 * position1.y
-        val dz = position0.z + position2.z - 2.0 * position1.z
-        position1.add(d * dx, d * dy, d * dz)
+        val dx = position0.x + position2.x - 2.0 * dst.x
+        val dy = position0.y + position2.y - 2.0 * dst.y
+        val dz = position0.z + position2.z - 2.0 * dst.z
+        dst.add(d * dx, d * dy, d * dz)
     }
 
 

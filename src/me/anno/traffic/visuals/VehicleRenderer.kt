@@ -9,6 +9,8 @@ import me.anno.ecs.components.mesh.material.MaterialBase
 import me.anno.gpu.pipeline.Pipeline
 import me.anno.io.files.FileReference
 import me.anno.traffic.Network
+import org.joml.AABBd
+import org.joml.Matrix4x3
 
 class VehicleRenderer(
     val carMesh: FileReference,
@@ -37,5 +39,9 @@ class VehicleRenderer(
                 else null
             callback(mesh, material, transform)
         }
+    }
+
+    override fun fillSpace(globalTransform: Matrix4x3, dstUnion: AABBd) {
+        fillAllSpace(dstUnion)
     }
 }

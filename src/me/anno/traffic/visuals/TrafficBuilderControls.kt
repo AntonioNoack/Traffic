@@ -10,6 +10,7 @@ import me.anno.gpu.pipeline.Pipeline
 import me.anno.input.Key
 import me.anno.traffic.Lane
 import me.anno.traffic.Network
+import me.anno.traffic.Street
 import me.anno.traffic.editor.StreetBuilder
 import me.anno.ui.UIColors
 import org.joml.Vector3d
@@ -31,8 +32,11 @@ class TrafficBuilderControls(sceneView: SceneView, val network: Network) :
         drawPotentialStreet()
 
         // draw existing streets
-        for (lane in network.lanes) {
+        if (false) for (lane in network.lanes) {
             drawLine(lane)
+        }
+        for (street in network.streets) {
+            drawLine(street)
         }
     }
 
@@ -73,6 +77,19 @@ class TrafficBuilderControls(sceneView: SceneView, val network: Network) :
         val n = 10
         val positions = List(n + 1) { index ->
             lane.getPosition(index.toDouble() / n, Vector3d())
+        }
+        for (i in 0 until n) {
+            val p0 = positions[i]
+            val p1 = positions[i + 1]
+            drawLine(p0, p1)
+        }
+    }
+
+    fun drawLine(street: Street) {
+        // draw bezier shape
+        val n = 10
+        val positions = List(n + 1) { index ->
+            street.getPosition(index.toDouble() / n, Vector3d())
         }
         for (i in 0 until n) {
             val p0 = positions[i]

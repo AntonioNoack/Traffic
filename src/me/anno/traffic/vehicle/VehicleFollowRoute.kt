@@ -1,5 +1,8 @@
 package me.anno.traffic.vehicle
 
+import me.anno.Time
+import me.anno.engine.debug.DebugLine
+import me.anno.engine.debug.DebugShapes
 import me.anno.maths.Maths.PIf
 import me.anno.maths.Maths.TAUf
 import me.anno.maths.Maths.clamp
@@ -9,6 +12,8 @@ import me.anno.traffic.CrossingSection
 import me.anno.traffic.Lane
 import me.anno.traffic.Vehicle
 import me.anno.traffic.utils.addUnique
+import me.anno.ui.UIColors
+import org.joml.Vector3d
 import org.joml.Vector3f
 import kotlin.math.*
 
@@ -120,11 +125,10 @@ private fun Vehicle.followOtherVehicles(desiredSpeed: Float): Float {
 
     for (other in nearby) {
         val toOther = other.position.sub(position, Vector3f())
-        val dot = toOther.dot(forward)
-        if (dot <= 0f) continue
+        val dot = toOther.dot(forward) // assumes vehicle driving forward
 
         // if our velocity moves us away from the other, skip
-        if (currentSpeed < 3f && toOther.length() + currentSpeed * 0.2f < toOther.distance(velocity)) continue
+        if (dot <= 0f) continue
 
         // todo bug: long trains don't stop early enough in some cases :(, why??
         val otherSpeed = other.velocity.length()
@@ -132,48 +136,64 @@ private fun Vehicle.followOtherVehicles(desiredSpeed: Float): Float {
                 (localBounds.deltaZ + other.localBounds.deltaZ) * 0.5f + // one car length
                 2.5f // safety distance when standing
 
-        if (dot < relevantDistance) {
+        val farAway = dot >= relevantDistance
+        if (farAway) continue
 
-            val safetyDistance = mix(0.2f, 1.2f, clamp(currentSpeed / 20f))
-
-            // half of each, plus safety
-            // "lerp" between deltaX and deltaZ depending on the relative vehicle angle, and position...
-            // val deltaAngle = rotation.getEulerAngleYXZvY() - other.rotation.getEulerAngleYXZvY()
-            // val relativeAngle = abs(sin(deltaAngle))
-            val pseudoCarDiameter = (localBounds.deltaZ + other.localBounds.deltaZ) * 0.5f + safetyDistance
-            val lateralDist = toOther.fmaDistance(dot, forward)
-            val gap = dot - pseudoCarDiameter
-
-            // todo only apply this, if the car has waited some time,
-            //  and we're not just stopped for a traffic light...
-            //if (currentSpeed < 1.0 && otherSpeed < 1e-4 && id < other.id)
-            //    continue // ignore other car to resolve deadlocks (?)
-
-            // Predict the other vehicle from its route when possible.
-            // Drivers can see the intended path, so route geometry is the better signal.
-            var effectiveGap = gap
-            var effectiveLateral = lateralDist
-
-            var predictionTime = 0f
-            while (predictionTime < brakingTime) {
-                predictionTime += 0.25f
-
-                val predictedToOther = predictRoutePositionPlusTime(other, predictionTime).sub(position, Vector3f())
-                val predictedDot = predictedToOther.dot(forward)
-                val predictedLateralDist = predictedToOther.fmaDistance(predictedDot, forward)
-                if (predictedLateralDist < effectiveLateral) {
-                    effectiveLateral = predictedLateralDist
-                    effectiveGap = predictedDot - pseudoCarDiameter
-                }
-            }
-
-            desiredSpeed = adjustDesiredSpeed(
-                currentSpeed, effectiveLateral, effectiveGap,
-                otherSpeed, desiredSpeed
+        DebugShapes.showDebugArrow(
+            DebugLine(
+                Vector3d(position).fma(1f, forward).apply { y += 2.0 },
+                Vector3d(other.position).fma(-1f, other.forward).apply { y += 2.0 },
+                UIColors.dodgerBlue, Time.deltaTime.toFloat()
             )
+        )
+
+        // half of each, plus safety
+        // "lerp" between deltaX and deltaZ depending on the relative vehicle angle, and position...
+        // val deltaAngle = rotation.getEulerAngleYXZvY() - other.rotation.getEulerAngleYXZvY()
+        // val relativeAngle = abs(sin(deltaAngle))
+        val carDiameter = pseudoCarDiameter(other)
+        val lateralDist = toOther.fmaDistance(dot, forward)
+        val gap = dot - carDiameter
+
+        // todo only apply this, if the car has waited some time,
+        //  and we're not just stopped for a traffic light...
+        //if (currentSpeed < 1.0 && otherSpeed < 1e-4 && id < other.id)
+        //    continue // ignore other car to resolve deadlocks (?)
+
+        // Predict the other vehicle from its route when possible.
+        // Drivers can see the intended path, so route geometry is the better signal.
+        var effectiveGap = gap
+        var minLateral = lateralDist
+
+        var predictionTime = 0f
+        while (predictionTime < brakingTime) {
+            predictionTime += 0.25f
+
+            val predictedToOther = predictRoutePositionPlusTime(other, predictionTime)
+                .sub(position, Vector3f())
+                .fma(-predictionTime, velocity)
+
+            val predictedDot = predictedToOther.dot(forward)
+            val predictedLateral = predictedToOther.fmaDistance(predictedDot, forward)
+            if (predictedLateral < minLateral) {
+                minLateral = predictedLateral
+                effectiveGap = predictedDot - carDiameter
+            }
         }
+
+        desiredSpeed = adjustDesiredSpeed(
+            currentSpeed, minLateral, effectiveGap,
+            otherSpeed, desiredSpeed
+        )
     }
     return desiredSpeed
+}
+
+fun Vehicle.pseudoCarDiameter(other: Vehicle): Float {
+    val howForward = abs(forward.dot(other.forward))
+    val otherBounds = other.localBounds
+    val safetyDistance = mix(0.2f, 1.5f, clamp(max(velocity.length(), other.velocity.length()) * 0.2f))
+    return safetyDistance + 0.5f * mix(localBounds.deltaX + otherBounds.deltaX, localBounds.deltaZ + otherBounds.deltaZ, howForward)
 }
 
 private fun adjustDesiredSpeed(

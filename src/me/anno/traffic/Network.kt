@@ -8,6 +8,7 @@ import me.anno.engine.debug.DebugAABB
 import me.anno.engine.debug.DebugShapes
 import me.anno.engine.serialization.NotSerializedProperty
 import me.anno.graph.octtree.KdTreePairs.queryPairs
+import me.anno.input.Input
 import me.anno.maths.Maths.sq
 import me.anno.traffic.trees.NearbyVehicleTree
 import me.anno.traffic.trees.StreetPointTree
@@ -67,13 +68,44 @@ class Network : System(), OnUpdate {
         }
 
         nearbyVehicleTree.queryPairs(0) { a, b ->
+            check(a !== b)
             a.nearby.add(b)
             b.nearby.add(a)
             false
         }
-        showVehicleTreeBounds()
 
-        showVehicleBounds()
+        validateNearbyVehicles()
+
+        if (Input.isShiftDown) {
+            showVehicleTreeBounds()
+            showVehicleBounds()
+        }
+    }
+
+    fun validateNearbyVehicles() {
+        val ab = AABBd()
+        val bb = AABBd()
+        for (a in vehicles) {
+            check(nearbyVehicleTree.containsValue(a))
+        }
+        for (ai in vehicles.indices) {
+            val a = vehicles[ai]
+            ab.setMin(a.nearbyBoundsMin)
+                .setMax(a.nearbyBoundsMax)
+                .addMargin(-1e-6) // floating point accuracy margin
+            for (bi in ai + 1 until vehicles.size) {
+                val b = vehicles[bi]
+                bb.setMin(b.nearbyBoundsMin)
+                    .setMax(b.nearbyBoundsMax)
+                val shouldBeInside = ab.testAABB(bb)
+                if (shouldBeInside) {
+                    check(b in a.nearby) {
+                        "Missing connection, $ab vs $bb"
+                    }
+                    check(a in b.nearby)
+                }
+            }
+        }
     }
 
     private fun showVehicleBounds() {
