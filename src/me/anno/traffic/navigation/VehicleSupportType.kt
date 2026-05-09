@@ -1,4 +1,4 @@
-package me.anno.traffic
+package me.anno.traffic.navigation
 
 enum class VehicleSupportType {
     PEDESTRIANS,

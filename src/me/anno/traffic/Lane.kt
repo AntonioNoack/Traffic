@@ -12,13 +12,18 @@ import org.joml.Vector3f
 import kotlin.math.min
 import kotlin.math.sqrt
 
-data class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) {
+open class Lane(val from: LanePoint, val control: LanePoint, val to: LanePoint) {
 
+    // only relevant for parking
     var supportedVehicleTypes = 0
+
     var crossingSection: CrossingSection? = null
     var maxSpeed = computeMaxSpeed()
 
     val approxLength = laneLength(from.position, control.position, to.position)
+
+    val parkingSpots = ArrayList<ParkingSpot>()
+    val driveways = ArrayList<Driveway>()
 
     fun mayEnterNextLane(nextLane: Lane?): Boolean {
         val curr = crossingSection

@@ -1,4 +1,4 @@
-package me.anno.traffic
+package me.anno.traffic.navigation
 
 // todo should this be an enum?
 enum class VehicleType(val minLaneWidth: Float) {
