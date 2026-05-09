@@ -9,6 +9,7 @@ import me.anno.maths.Maths.clamp
 import me.anno.maths.Maths.mix
 import me.anno.maths.Maths.sq
 import me.anno.traffic.CrossingSection
+import me.anno.traffic.Driveway
 import me.anno.traffic.Lane
 import me.anno.traffic.Vehicle
 import me.anno.traffic.utils.addUnique
@@ -34,8 +35,9 @@ private fun Vehicle.computeTargetVelocity(): Vector3f {
 
     val nextT = curr.getClosestT(position, routeIndexF)
     val next = route.getOrNull(routeIndex + 1)
+    val endT = if (next is Driveway) next.streetT else 1f
     val canEnterNextLane = curr.mayEnterNextLane(next)
-    val didAdvance = nextT > 1f && routeIndex + 1 < route.size && canEnterNextLane
+    val didAdvance = nextT > endT && routeIndex + 1 < route.size && canEnterNextLane
 
     updateCrossing(curr, next, nextT, didAdvance)
 
@@ -57,14 +59,18 @@ private fun Vehicle.computeTargetVelocity(): Vector3f {
 
     guidance.mul(desiredSpeed)
 
-    updateRouteIndices(nextT, didAdvance)
+    updateRouteIndices(curr, endT, nextT, didAdvance)
 
     return guidance
 }
 
-fun Vehicle.updateRouteIndices(nextT: Float, didAdvance: Boolean) {
+fun Vehicle.updateRouteIndices(currLane: Lane?, endT: Float, nextT: Float, didAdvance: Boolean) {
     if (didAdvance) routeIndex++
-    routeIndexF = if (didAdvance) nextT - 1f else min(nextT, 1f)
+    routeIndexF = if (didAdvance) {
+        val base = nextT - endT
+        if (currLane is Driveway) base + currLane.streetT // entering from a driveway
+        else base
+    } else min(nextT, 1f)
 }
 
 fun Vehicle.updateCrossing(
