@@ -3,7 +3,6 @@ package me.anno.traffic.testing
 import me.anno.ecs.Entity
 import me.anno.maths.Maths.PIf
 import me.anno.maths.Maths.mixAngle
-import me.anno.maths.Maths.sq
 import me.anno.maths.optimization.GoldenSectionSearch
 import me.anno.traffic.*
 import me.anno.traffic.editor.StreetBuilder
@@ -42,8 +41,7 @@ fun createIntersection(
     val crossingSections = HashMap<Street?, CrossingSection>()
     val center1 = crossingSections.getOrPut(null) { CrossingSection(crossing, 0) }
 
-    // todo split crossing into sections, so each part can drive at a time...
-
+    // split crossing into sections, so each part can drive at a time...
     val newLanes = ArrayList<Lane>()
     for (entry in entryLanes) {
         for (exit in exitLanes) {
@@ -109,21 +107,22 @@ fun createIntersection(
 fun spawnVehicles(network: Network, streets: List<Street>, seed: Long) {
     val rnd = Random(seed)
     for (streetIndex in streets.indices) {
-        if (streetIndex != 3) continue
+        // if (streetIndex != 3) continue
         val street = streets[streetIndex]
 
         for (laneIndex in street.lanes.indices) {
-            if (laneIndex >= 1) continue
+            // if (laneIndex >= 3) continue
             val lane = street.lanes[laneIndex]
 
             val numCars = (lane.approxLength / 10f).toInt()
-            for (ti in 0 until numCars) {
-                if (false && rnd.nextFloat() < 0.3f) continue
+            var ti = 0
+            while (ti++ < numCars) {
+                if (rnd.nextFloat() < 0.3f) continue
 
-                if (ti < numCars - 1) continue
+                // if (ti < numCars - 3) continue
 
                 val vehicle = Vehicle()
-                val t = (ti + 0.5f) / numCars
+                val t = 1f - ((ti - 1) + 0.5f) / numCars
                 vehicle.setOn(lane, t)
 
                 for (i in 0 until 3) {
@@ -134,7 +133,8 @@ fun spawnVehicles(network: Network, streets: List<Street>, seed: Long) {
 
                 var last = vehicle
                 var chance = 0.1f
-                while (false && rnd.nextFloat() < chance) {
+                while (rnd.nextFloat() < chance) {
+                    ti++
 
                     vehicle.maxAcceleration *= 0.7f
                     vehicle.maxDeceleration *= 0.7f

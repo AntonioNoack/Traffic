@@ -52,7 +52,7 @@ fun Vehicle.update2() {
 
 
 fun Vehicle.applyVelocity(dt: Float) {
-    angularVelocity = 0f // absClamp(angularVelocity, 100f)
+    angularVelocity = absClamp(angularVelocity, 100f)
     rotationY = posMod(rotationY + angularVelocity * dt, TAUf)
 
     val curr = route[routeIndex]

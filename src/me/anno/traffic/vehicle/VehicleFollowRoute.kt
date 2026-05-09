@@ -139,14 +139,6 @@ private fun Vehicle.followOtherVehicles(desiredSpeed: Float): Float {
         val farAway = dot >= relevantDistance
         if (farAway) continue
 
-        DebugShapes.showDebugArrow(
-            DebugLine(
-                Vector3d(position).fma(1f, forward).apply { y += 2.0 },
-                Vector3d(other.position).fma(-1f, other.forward).apply { y += 2.0 },
-                UIColors.dodgerBlue, Time.deltaTime.toFloat()
-            )
-        )
-
         // half of each, plus safety
         // "lerp" between deltaX and deltaZ depending on the relative vehicle angle, and position...
         // val deltaAngle = rotation.getEulerAngleYXZvY() - other.rotation.getEulerAngleYXZvY()
@@ -181,31 +173,56 @@ private fun Vehicle.followOtherVehicles(desiredSpeed: Float): Float {
             }
         }
 
-        desiredSpeed = adjustDesiredSpeed(
-            currentSpeed, minLateral, effectiveGap,
-            otherSpeed, desiredSpeed
-        )
+        // todo lane-thickness is deltaZ, if the other vehicle stands cross-sided
+        val laneThickness = max(localBounds.deltaX, other.localBounds.deltaX) * 1.1f
+        if (minLateral < laneThickness) {
+
+            DebugShapes.showDebugArrow(
+                DebugLine(
+                    Vector3d(position).fma(1f, forward).apply { y += 2.0 },
+                    Vector3d(other.position).fma(-1f, other.forward).apply { y += 2.0 },
+                    UIColors.dodgerBlue, Time.deltaTime.toFloat()
+                )
+            )
+
+            val safeGap = 0.5f + currentSpeed * 2f
+            desiredSpeed = adjustDesiredSpeed(
+                effectiveGap, safeGap,
+                otherSpeed, desiredSpeed
+            )
+        }
     }
     return desiredSpeed
 }
 
 fun Vehicle.pseudoCarDiameter(other: Vehicle): Float {
-    val howForward = abs(forward.dot(other.forward))
+    var howForward = abs(forward.dot(other.forward))
+    howForward = 1f - sq(1f - howForward) // forward needs larger distance
+
     val otherBounds = other.localBounds
-    val safetyDistance = mix(0.2f, 1.5f, clamp(max(velocity.length(), other.velocity.length()) * 0.2f))
-    return safetyDistance + 0.5f * mix(localBounds.deltaX + otherBounds.deltaX, localBounds.deltaZ + otherBounds.deltaZ, howForward)
+    val speedFactor = clamp(max(velocity.length(), other.velocity.length()) * 0.2f)
+    val lateralSafetyDistance = mix(0.2f, 1.5f, speedFactor)
+    val forwardSafetyDistance = mix(1.5f, 10f, speedFactor)
+    val safetyDistance = mix(
+        lateralSafetyDistance,
+        forwardSafetyDistance,
+        howForward
+    )
+    return safetyDistance + 0.5f * mix(
+        localBounds.deltaX + otherBounds.deltaX,
+        localBounds.deltaZ + otherBounds.deltaZ,
+        howForward
+    )
 }
 
 private fun adjustDesiredSpeed(
-    currentSpeed: Float,
-    effectiveLateral: Float,
     effectiveGap: Float,
+    safeGap: Float,
     otherSpeed: Float,
-    desiredSpeed: Float
+    desiredSpeed: Float,
 ): Float {
     // IDM-like following
-    val safeGap = 2.5f + currentSpeed * 2f // 2.5m + 2s gap
-    return if (effectiveLateral < 2.5f && effectiveGap < safeGap) {
+    return if (effectiveGap < safeGap) {
         val gapFactor = clamp(effectiveGap / safeGap)
         val speedLimit = max(0f, otherSpeed * gapFactor)
         min(desiredSpeed, speedLimit)

@@ -16,8 +16,6 @@ import java.lang.Math.TAU
 import kotlin.math.max
 import kotlin.math.min
 
-// todo this looks pretty wrong :(
-
 fun buildFivePointIntersectionInPlannerMode(network: Network, scene: Entity): List<Street> {
 
     val raise = 0.0
